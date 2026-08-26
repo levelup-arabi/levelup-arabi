@@ -171,8 +171,11 @@
       <div class="field"><label>الاسم</label><input id="newName"/></div>
       <div class="field"><label>اسم المستخدم</label><input id="newUsername"/></div>
       <div class="field"><label>PIN (6 أرقام على الأقل)</label><input id="newPin" type="password" maxlength="12"/></div>
-      <div class="field"><label>المسار / الصف</label><input id="newTrack" placeholder="مثلاً: ثانوي - علمي"/></div>
-      <button class="btn-primary" style="width:100%;" onclick="createStudent()">إنشاء</button>
+      <div class="field">
+        <label>الصف / النظام / المسار الدراسي</label>
+        <div id="curPicker-new"></div>
+      </div>
+      <button class="btn-primary" style="width:100%;" onclick="createStudent()">التالي: مراجعة البيانات</button>
       <div id="newErr" class="err-text"></div>
     </div>
   </section>
@@ -182,9 +185,23 @@
       <h2 class="center">كمّل بياناتك</h2>
       <div class="field"><label>الاسم</label><input id="cpName"/></div>
       <div class="field"><label>اسم المستخدم</label><input id="cpUsername"/></div>
-      <div class="field"><label>المسار / الصف</label><input id="cpTrack" placeholder="مثلاً: ثانوي - علمي"/></div>
-      <button class="btn-primary" style="width:100%;" onclick="completeProfile()">ابدأ</button>
+      <div class="field">
+        <label>الصف / النظام / المسار الدراسي</label>
+        <div id="curPicker-cp"></div>
+      </div>
+      <button class="btn-primary" style="width:100%;" onclick="completeProfile()">التالي: مراجعة البيانات</button>
       <div id="cpErr" class="err-text"></div>
+    </div>
+  </section>
+
+  <section id="screen-review" class="hidden">
+    <div style="max-width:420px;margin:0 auto;">
+      <button class="link" onclick="reviewGoBack()">← رجوع للتعديل</button>
+      <h2 style="margin-top:10px;">راجع بياناتك قبل إنشاء الحساب</h2>
+      <p class="muted" style="font-size:12.5px;margin-top:-4px;">اتأكد إن كل اختياراتك صح، مينفعش تتغير من غير ما ترجع تعدل.</p>
+      <div id="reviewContent"></div>
+      <button class="btn-primary" style="width:100%;margin-top:6px;" id="reviewConfirmBtn" onclick="reviewConfirm()">تأكيد وإنشاء الحساب</button>
+      <div id="reviewErr" class="err-text"></div>
     </div>
   </section>
 
@@ -281,10 +298,15 @@ function go(screen){
   document.getElementById('logoutBtn').classList.toggle('hidden', screen!=='student');
 }
 document.getElementById('logoutBtn').onclick = ()=> auth.signOut().then(()=>go('landing'));
+let curPickerNewInited = false;
 function setAuthTab(t){
   document.querySelectorAll('#screen-studentAuth .tab').forEach(el=>el.classList.toggle('active', el.dataset.authtab===t));
   document.getElementById('authTab-login').classList.toggle('hidden', t!=='login');
   document.getElementById('authTab-new').classList.toggle('hidden', t!=='new');
+  if(t==='new' && !curPickerNewInited){
+    curPickerNewInited = true;
+    curPickerInit('curPicker-new');
+  }
 }
 
 // ---------------- Google sign-in ----------------
@@ -300,17 +322,327 @@ function googleLogin(){
       pendingGoogleUser = cred.user;
       cpName.value = cred.user.displayName || '';
       go('completeProfile');
+      curPickerInit('curPicker-cp');
     }
   }).catch(err=> alert('حصل خطأ في الدخول بجوجل: '+err.message));
 }
 function completeProfile(){
-  const name=cpName.value.trim(), username=cpUsername.value.trim(), track=cpTrack.value.trim();
+  const name=cpName.value.trim(), username=cpUsername.value.trim();
   const errEl=document.getElementById('cpErr'); errEl.textContent='';
+  const curSel = curPickerGetSelection('curPicker-cp');
   if(!name||!username){ errEl.textContent='اكمل البيانات'; return; }
-  db.collection('students').doc(pendingGoogleUser.uid).set({
-    name, username, track, active:true, createdAt: FieldValue.serverTimestamp()
-  }).then(()=> enterStudent({id:pendingGoogleUser.uid,name,username,track,active:true}))
-    .catch(e=> errEl.textContent = e.message);
+  if(!curSel){ errEl.textContent='اختار الصف والنظام والمسار وكمّل اختيار المواد.'; return; }
+  reviewMode = 'cp';
+  reviewPendingData = {name, username, curSel};
+  renderReview(name, username, curSel);
+  go('review');
+}
+
+// ==================================================================
+// شاشة المراجعة النهائية قبل إنشاء الحساب (تُستخدم لحسابي PIN وGoogle معًا)
+// ==================================================================
+let reviewMode = null;          // 'new' (PIN) أو 'cp' (Google)
+let reviewPendingData = null;   // {name, username, pin?, curSel}
+
+function reviewAddRow(wrap, label, value){
+  const row = document.createElement('div'); row.className='list-item';
+  row.style.cssText='display:flex;justify-content:space-between;gap:12px;align-items:flex-start;';
+  const l = document.createElement('span'); l.className='muted'; l.style.cssText='font-size:12px;flex-shrink:0;';
+  l.textContent = label;
+  const v = document.createElement('span'); v.style.cssText='font-weight:700;text-align:left;font-size:13.5px;';
+  v.textContent = value;
+  row.appendChild(l); row.appendChild(v);
+  wrap.appendChild(row);
+}
+function renderReview(name, username, curSel){
+  const wrap = document.getElementById('reviewContent'); wrap.innerHTML='';
+  document.getElementById('reviewErr').textContent='';
+  const btn = document.getElementById('reviewConfirmBtn'); btn.disabled=false; btn.textContent='تأكيد وإنشاء الحساب';
+  reviewAddRow(wrap, 'الاسم', name);
+  reviewAddRow(wrap, 'اسم المستخدم', username);
+  reviewAddRow(wrap, 'الصف', curSel.gradeName);
+  reviewAddRow(wrap, 'النظام', curSel.systemName);
+  reviewAddRow(wrap, 'المسار', curSel.trackName);
+  if(curSel.requiredSubjects.length) reviewAddRow(wrap, 'المواد الثابتة', curSel.requiredSubjects.map(s=>s.name).join('، '));
+  curSel.selectedSubjects.forEach(g=> reviewAddRow(wrap, g.groupTitle, g.options.map(o=>o.name).join('، ') || '—'));
+  if(curSel.outsideSubjects.length) reviewAddRow(wrap, 'مواد خارج المجموع', curSel.outsideSubjects.map(s=>s.name).join('، '));
+}
+function reviewGoBack(){
+  go(reviewMode==='new' ? 'studentAuth' : 'completeProfile');
+}
+function reviewConfirm(){
+  const btn = document.getElementById('reviewConfirmBtn');
+  const errEl = document.getElementById('reviewErr'); errEl.textContent='';
+  const data = reviewPendingData, curSel = data.curSel;
+  const track = curSel.trackName; // نص عرض مختصر للتوافق مع الأماكن اللي بتعرض track كنص
+  btn.disabled = true; btn.textContent='جاري الإنشاء...';
+  const restore = ()=>{ btn.disabled=false; btn.textContent='تأكيد وإنشاء الحساب'; };
+  const studentDoc = {
+    name: data.name, username: data.username, track,
+    gradeId: curSel.gradeId, gradeName: curSel.gradeName,
+    systemId: curSel.systemId, systemName: curSel.systemName,
+    trackId: curSel.trackId, trackName: curSel.trackName,
+    requiredSubjects: curSel.requiredSubjects,
+    outsideSubjects: curSel.outsideSubjects,
+    selectedSubjects: curSel.selectedSubjects,
+    active:true, createdAt: FieldValue.serverTimestamp()
+  };
+  if(reviewMode==='new'){
+    auth.createUserWithEmailAndPassword(usernameToEmail(data.username), data.pin)
+      .then(cred => db.collection('students').doc(cred.user.uid).set(studentDoc)
+        .then(()=> enterStudent({id:cred.user.uid, name:data.name, username:data.username, track, active:true})))
+      .catch(err => { restore(); errEl.textContent = err.code === 'auth/email-already-in-use' ? 'اسم المستخدم مستخدم بالفعل.' : 'حصل خطأ: '+err.message; });
+  } else {
+    db.collection('students').doc(pendingGoogleUser.uid).set(studentDoc)
+      .then(()=> enterStudent({id:pendingGoogleUser.uid, name:data.name, username:data.username, track, active:true}))
+      .catch(e=> { restore(); errEl.textContent = e.message; });
+  }
+}
+
+// ==================================================================
+// مكوّن اختيار المسار الدراسي (صف → نظام → مسار)
+// بيقرأ نفس بيانات curriculumGrades اللي الأدمن بيضيفها من admin.html،
+// عشان الطالب يختار بالتدريج بدل ما يكتب المسار بنفسه.
+// ==================================================================
+const curPickerState = {};            // containerId -> {grade, system, track}
+const curPickerOnSelectCallbacks = {}; // containerId -> function(selection)
+
+function curPickerInit(containerId){
+  curPickerState[containerId] = {grade:null, system:null, track:null, trackData:null, subjectSelections:{}};
+  curPickerRenderGrades(containerId);
+}
+function curPickerOnSelect(containerId, fn){ curPickerOnSelectCallbacks[containerId] = fn; }
+function curPickerBox(containerId){ return document.getElementById(containerId); }
+function curPickerLoading(containerId, text){
+  curPickerBox(containerId).innerHTML = `<div class="muted" style="font-size:13px;padding:8px 0;">${text||'جاري التحميل...'}</div>`;
+}
+function curPickerSummary(containerId){
+  const st = curPickerState[containerId];
+  return [st.grade&&st.grade.name, st.system&&st.system.name, st.track&&st.track.name].filter(Boolean).join(' / ');
+}
+function curPickerGetSelection(containerId){
+  const st = curPickerState[containerId];
+  if(!st || !st.grade || !st.system || !st.track) return null;
+  const td = st.trackData || {requiredSubjects:[],choiceGroups:[],outsideSubjects:[]};
+  const groups = td.choiceGroups || [];
+  for(const g of groups){ if((st.subjectSelections[g.id]||[]).length !== g.choose) return null; }
+  const selectedSubjects = groups.map(g=>{
+    const chosenIds = st.subjectSelections[g.id]||[];
+    return {
+      groupId: g.id, groupTitle: g.title, choose: g.choose,
+      options: chosenIds.map(id=>{
+        const o = (g.options||[]).find(x=>x.id===id);
+        return o ? {id:o.id, name:o.name} : {id, name:''};
+      })
+    };
+  });
+  return {
+    gradeId: st.grade.id, gradeName: st.grade.name,
+    systemId: st.system.id, systemName: st.system.name,
+    trackId: st.track.id, trackName: st.track.name,
+    requiredSubjects: (td.requiredSubjects||[]).map(s=>({id:s.id, name:s.name})),
+    outsideSubjects: (td.outsideSubjects||[]).map(s=>({id:s.id, name:s.name})),
+    selectedSubjects,
+  };
+}
+function curPickerSelectedSubjectNames(containerId){
+  const st = curPickerState[containerId];
+  if(!st || !st.trackData) return [];
+  const names = [];
+  (st.trackData.choiceGroups||[]).forEach(g=>{
+    (st.subjectSelections[g.id]||[]).forEach(optId=>{
+      const opt = (g.options||[]).find(o=>o.id===optId);
+      if(opt) names.push(opt.name);
+    });
+  });
+  return names;
+}
+function curPickerBreadcrumb(containerId){
+  const st = curPickerState[containerId];
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:8px;font-size:12.5px;';
+  const crumbs = [{label:'الصف', fn:()=>{ st.grade=null; st.system=null; st.track=null; st.trackData=null; st.subjectSelections={}; curPickerRenderGrades(containerId); }}];
+  if(st.grade) crumbs.push({label:st.grade.name, fn:()=>{ st.system=null; st.track=null; st.trackData=null; st.subjectSelections={}; curPickerRenderSystems(containerId); }});
+  if(st.system) crumbs.push({label:st.system.name, fn:()=>{ st.track=null; st.trackData=null; st.subjectSelections={}; curPickerRenderTracks(containerId); }});
+  if(st.track) crumbs.push({label:st.track.name, fn:()=>{ curPickerRenderSubjects(containerId); }});
+  crumbs.forEach((c,i)=>{
+    const isLast = i===crumbs.length-1;
+    const b = document.createElement('button'); b.type='button'; b.className='link';
+    b.style.cssText = 'padding:2px 4px;font-weight:700;' + (isLast?'color:var(--text);cursor:default;':'color:var(--primary);');
+    b.textContent = c.label;
+    if(!isLast) b.addEventListener('click', c.fn); else b.disabled = true;
+    wrap.appendChild(b);
+    if(!isLast){ const sep=document.createElement('span'); sep.className='muted'; sep.textContent=' ‹ '; wrap.appendChild(sep); }
+  });
+  return wrap;
+}
+function curPickerOptionButton(name, onClick){
+  const b = document.createElement('button'); b.type='button'; b.className='card';
+  b.style.cssText = 'width:100%;text-align:right;padding:12px 14px;margin-bottom:8px;font-weight:700;font-size:14px;';
+  b.textContent = name;
+  b.addEventListener('click', onClick);
+  return b;
+}
+function curPickerEmpty(box, text){
+  const p = document.createElement('p'); p.className='muted'; p.style.fontSize='13px'; p.textContent = text;
+  box.appendChild(p);
+}
+async function curPickerRenderGrades(containerId){
+  curPickerLoading(containerId, 'جاري تحميل الصفوف...');
+  try{
+    const snap = await db.collection('curriculumGrades').orderBy('order').get();
+    const box = curPickerBox(containerId); box.innerHTML=''; box.appendChild(curPickerBreadcrumb(containerId));
+    if(snap.empty){ curPickerEmpty(box, 'لا يوجد صفوف دراسية مضافة بعد، تواصل مع الإدارة.'); return; }
+    snap.forEach(d=>{
+      const g = {id:d.id, ...d.data()};
+      box.appendChild(curPickerOptionButton(g.name, ()=>{
+        curPickerState[containerId].grade = {id:g.id, name:g.name};
+        curPickerRenderSystems(containerId);
+      }));
+    });
+  }catch(e){ curPickerBox(containerId).innerHTML = `<div class="err-text">تعذر تحميل الصفوف: ${e.message}</div>`; }
+}
+async function curPickerRenderSystems(containerId){
+  const st = curPickerState[containerId];
+  curPickerLoading(containerId, 'جاري تحميل الأنظمة...');
+  try{
+    const snap = await db.collection('curriculumGrades').doc(st.grade.id).collection('systems').orderBy('order').get();
+    const box = curPickerBox(containerId); box.innerHTML=''; box.appendChild(curPickerBreadcrumb(containerId));
+    if(snap.empty){ curPickerEmpty(box, 'لا يوجد أنظمة لهذا الصف بعد.'); return; }
+    snap.forEach(d=>{
+      const s = {id:d.id, ...d.data()};
+      box.appendChild(curPickerOptionButton(s.name, ()=>{
+        curPickerState[containerId].system = {id:s.id, name:s.name};
+        curPickerRenderTracks(containerId);
+      }));
+    });
+  }catch(e){ curPickerBox(containerId).innerHTML = `<div class="err-text">تعذر تحميل الأنظمة: ${e.message}</div>`; }
+}
+async function curPickerRenderTracks(containerId){
+  const st = curPickerState[containerId];
+  curPickerLoading(containerId, 'جاري تحميل المسارات...');
+  try{
+    const snap = await db.collection('curriculumGrades').doc(st.grade.id)
+      .collection('systems').doc(st.system.id).collection('tracks').orderBy('order').get();
+    const box = curPickerBox(containerId); box.innerHTML=''; box.appendChild(curPickerBreadcrumb(containerId));
+    if(snap.empty){ curPickerEmpty(box, 'لا يوجد مسارات لهذا النظام بعد.'); return; }
+    snap.forEach(d=>{
+      const t = {id:d.id, ...d.data()};
+      box.appendChild(curPickerOptionButton(t.name, ()=>{
+        const cst = curPickerState[containerId];
+        cst.track = {id:t.id, name:t.name};
+        cst.trackData = {
+          requiredSubjects: (t.requiredSubjects||[]).slice().sort((a,b)=>a.order-b.order),
+          choiceGroups: (t.choiceGroups||[]).slice().sort((a,b)=>a.order-b.order)
+            .map(g=>({...g, options:(g.options||[]).slice().sort((a,b)=>a.order-b.order)})),
+          outsideSubjects: (t.outsideSubjects||[]).slice().sort((a,b)=>a.order-b.order),
+        };
+        cst.subjectSelections = {};
+        curPickerRenderSubjects(containerId);
+      }));
+    });
+  }catch(e){ curPickerBox(containerId).innerHTML = `<div class="err-text">تعذر تحميل المسارات: ${e.message}</div>`; }
+}
+
+// ---------- خطوة اختيار المواد (ثابتة كمعلومة + مجموعات اختيار إجبارية) ----------
+function curPickerRenderSubjects(containerId){
+  const st = curPickerState[containerId];
+  const td = st.trackData || {requiredSubjects:[],choiceGroups:[],outsideSubjects:[]};
+  const box = curPickerBox(containerId); box.innerHTML=''; box.appendChild(curPickerBreadcrumb(containerId));
+
+  if(td.requiredSubjects.length){
+    const t = document.createElement('div'); t.style.cssText='font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 6px;';
+    t.textContent = '📗 المواد الثابتة في هذا المسار';
+    box.appendChild(t);
+    const list = document.createElement('div'); list.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;';
+    td.requiredSubjects.forEach(s=>{
+      const chip = document.createElement('span');
+      chip.style.cssText='background:#eef7f4;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;';
+      chip.textContent = s.name;
+      list.appendChild(chip);
+    });
+    box.appendChild(list);
+  }
+
+  const groups = td.choiceGroups || [];
+  if(groups.length){
+    const gt = document.createElement('div'); gt.style.cssText='font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 6px;';
+    gt.textContent = '🔀 اختر موادّك من كل مجموعة';
+    box.appendChild(gt);
+  }
+  groups.forEach(g=>{
+    if(!st.subjectSelections[g.id]) st.subjectSelections[g.id] = [];
+    const sel = st.subjectSelections[g.id];
+    const card = document.createElement('div'); card.className='list-item';
+    const head = document.createElement('div'); head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+    const titleSpan = document.createElement('b'); titleSpan.textContent = g.title;
+    const countSpan = document.createElement('span'); countSpan.className='muted'; countSpan.style.fontSize='12px';
+    countSpan.textContent = `${sel.length}/${g.choose} مختار`;
+    head.appendChild(titleSpan); head.appendChild(countSpan);
+    card.appendChild(head);
+    (g.options||[]).forEach(o=>{
+      const isChecked = sel.includes(o.id);
+      const opt = document.createElement('button'); opt.type='button';
+      opt.style.cssText = `width:100%;text-align:right;padding:10px 12px;margin-bottom:6px;border-radius:10px;font-weight:600;font-size:13.5px;border:1.5px solid ${isChecked?'var(--primary)':'var(--line)'};background:${isChecked?'rgba(31,167,126,.1)':'#fff'};color:var(--text);transition:.15s;`;
+      opt.textContent = (isChecked?'✓ ':'') + o.name;
+      opt.addEventListener('click', ()=>{
+        const arr = st.subjectSelections[g.id];
+        const idx = arr.indexOf(o.id);
+        if(idx>-1){ arr.splice(idx,1); }
+        else { if(arr.length >= g.choose) return; arr.push(o.id); }
+        curPickerRenderSubjects(containerId);
+      });
+      card.appendChild(opt);
+    });
+    box.appendChild(card);
+  });
+
+  if(td.outsideSubjects && td.outsideSubjects.length){
+    const t = document.createElement('div'); t.style.cssText='font-size:12px;font-weight:700;color:var(--muted);margin:10px 0 6px;';
+    t.textContent = '📙 مواد خارج المجموع';
+    box.appendChild(t);
+    const list = document.createElement('div'); list.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;';
+    td.outsideSubjects.forEach(s=>{
+      const chip = document.createElement('span');
+      chip.style.cssText='background:#fff7e6;border:1px solid #fde3ad;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;color:#92650c;';
+      chip.textContent = s.name;
+      list.appendChild(chip);
+    });
+    box.appendChild(list);
+  }
+
+  const errBox = document.createElement('div'); errBox.className='err-text'; box.appendChild(errBox);
+  const continueBtn = document.createElement('button'); continueBtn.className='btn-primary'; continueBtn.style.cssText='width:100%;margin-top:4px;';
+  continueBtn.textContent = 'متابعة';
+  continueBtn.addEventListener('click', ()=>{
+    const incomplete = groups.find(g=> (st.subjectSelections[g.id]||[]).length !== g.choose);
+    if(incomplete){ errBox.textContent = `لازم تختار ${incomplete.choose} بالظبط من "${incomplete.title}".`; return; }
+    curPickerRenderDone(containerId);
+  });
+  box.appendChild(continueBtn);
+}
+function curPickerRenderDone(containerId){
+  const box = curPickerBox(containerId); box.innerHTML=''; box.appendChild(curPickerBreadcrumb(containerId));
+  const doneBox = document.createElement('div');
+  doneBox.className='list-item'; doneBox.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px;';
+  const left = document.createElement('div');
+  const txt = document.createElement('div'); txt.style.fontWeight='700'; txt.textContent = '✓ ' + curPickerSummary(containerId);
+  left.appendChild(txt);
+  const subNames = curPickerSelectedSubjectNames(containerId);
+  if(subNames.length){
+    const subLine = document.createElement('div'); subLine.className='muted'; subLine.style.cssText='font-size:12px;margin-top:4px;';
+    subLine.textContent = 'المواد المختارة: ' + subNames.join('، ');
+    left.appendChild(subLine);
+  }
+  const changeBtn = document.createElement('button'); changeBtn.className='link'; changeBtn.style.flexShrink='0'; changeBtn.textContent='تغيير';
+  changeBtn.addEventListener('click', ()=>{
+    const cst = curPickerState[containerId];
+    cst.track=null; cst.trackData=null; cst.subjectSelections={};
+    curPickerRenderTracks(containerId);
+  });
+  doneBox.appendChild(left); doneBox.appendChild(changeBtn);
+  box.appendChild(doneBox);
+  if(curPickerOnSelectCallbacks[containerId]) curPickerOnSelectCallbacks[containerId](curPickerGetSelection(containerId));
 }
 
 // ---------------- username/PIN auth ----------------
@@ -329,17 +661,16 @@ function studentLogin(){
     .catch(err => { document.getElementById('loginErr').textContent = 'اسم المستخدم أو الـ PIN غلط.'; });
 }
 function createStudent(){
-  const name=newName.value.trim(), username=newUsername.value.trim(), pin=newPin.value, track=newTrack.value.trim();
+  const name=newName.value.trim(), username=newUsername.value.trim(), pin=newPin.value;
   const errEl = document.getElementById('newErr'); errEl.textContent='';
+  const curSel = curPickerGetSelection('curPicker-new');
   if(!name||!username||!pin) { errEl.textContent='اكمل البيانات'; return; }
   if(pin.length < 6){ errEl.textContent='الـ PIN لازم يكون 6 خانات على الأقل.'; return; }
-  auth.createUserWithEmailAndPassword(usernameToEmail(username), pin)
-    .then(cred => db.collection('students').doc(cred.user.uid).set({
-        name, username, track, active:true, createdAt: FieldValue.serverTimestamp()
-      }).then(()=> enterStudent({id:cred.user.uid, name, username, track, active:true})))
-    .catch(err => {
-      errEl.textContent = err.code === 'auth/email-already-in-use' ? 'اسم المستخدم مستخدم بالفعل.' : 'حصل خطأ: '+err.message;
-    });
+  if(!curSel){ errEl.textContent='اختار الصف والنظام والمسار وكمّل اختيار المواد.'; return; }
+  reviewMode = 'new';
+  reviewPendingData = {name, username, pin, curSel};
+  renderReview(name, username, curSel);
+  go('review');
 }
 
 function enterStudent(s){
@@ -474,7 +805,8 @@ auth.onAuthStateChanged(async (user)=>{
   const stuDoc = await db.collection('students').doc(user.uid).get();
   if(stuDoc.exists && stuDoc.data().active !== false){ enterStudent({id:user.uid, ...stuDoc.data()}); return; }
   if(!stuDoc.exists && user.providerData.some(p=>p.providerId==='google.com')){
-    pendingGoogleUser = user; cpName.value = user.displayName||''; go('completeProfile'); return;
+    pendingGoogleUser = user; cpName.value = user.displayName||''; go('completeProfile');
+    curPickerInit('curPicker-cp'); return;
   }
   go('landing');
 });
