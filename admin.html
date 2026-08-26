@@ -1,5 +1,4 @@
 
-Admin · HTML
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -123,6 +122,13 @@ Admin · HTML
 </div></div>
  
 <div class="wrap">
+ 
+  <section id="screen-loading">
+    <div style="text-align:center;margin:70px auto 0;">
+      <div style="font-size:40px;">⏳</div>
+      <p class="muted" style="margin-top:12px;">جاري التحقق من الصلاحيات...</p>
+    </div>
+  </section>
  
   <section id="screen-login" class="hidden">
     <div style="max-width:340px;margin:60px auto 0;">
@@ -285,15 +291,27 @@ async function completeEmailLinkSignIn(email){
   }
 }
  
+let isAdminLoaded = false; // بيمنع onSnapshot يتفعّل أكتر من مرة لو afterFullVerification اتنادت أكتر من مرة (مثلاً بعد تجديد التوكن)
+ 
 async function afterFullVerification(user){
-  const adminDoc = await getDoc(doc(db,'admins',user.uid));
-  if(!adminDoc.exists()){
-    await signOut(auth);
+  try{
+    const adminDoc = await getDoc(doc(db,'admins',user.uid));
+    if(!adminDoc.exists()){
+      await signOut(auth);
+      go('login');
+      document.getElementById('loginErr').textContent = 'الحساب ده مش أدمن.';
+      return;
+    }
+    go('admin');
+    if(!isAdminLoaded){
+      isAdminLoaded = true;
+      loadAdminStudents();
+      loadAdminLog();
+    }
+  }catch(err){
+    console.error('afterFullVerification error:', err);
     go('login');
-    document.getElementById('loginErr').textContent = 'الحساب ده مش أدمن.';
-    return;
   }
-  go('admin'); loadAdminStudents(); loadAdminLog();
 }
  
 // ---------------- tabs ----------------
@@ -413,12 +431,17 @@ function loadAdminLog(){
  
 // ---------------- boot ----------------
 onAuthStateChanged(auth, (user)=>{
-  if(transientAuthCheck) return; // متجاهلين تغييرات الحالة أثناء خطوة الباسورد المؤقتة
+  if(transientAuthCheck) return; // متجاهلين تغييرات الحالة أثناء خطوة الباسورد المؤقتة أو استكمال رابط الإيميل
+  // لو المستخدم لسه في شاشة "أكّد بريدك" (فتح الرابط من جهاز مختلف)، سيبه يكمل إدخال الإيميل
+  // من غير ما afterFullVerification يتدخل قبل الأوان.
+  const confirmScreen = document.getElementById('screen-confirmEmail');
+  if(confirmScreen && !confirmScreen.classList.contains('hidden')) return;
   if(!user){ go('login'); return; }
   afterFullVerification(user);
 });
  
 (async function boot(){
+  go('loading'); // شاشة تحميل فقط لحد ما نقرر أي شاشة تظهر فعليًا
   if(isSignInWithEmailLink(auth, window.location.href)){
     transientAuthCheck = true;
     const savedEmail = window.localStorage.getItem(EMAIL_STORAGE_KEY);
