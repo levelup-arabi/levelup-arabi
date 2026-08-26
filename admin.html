@@ -10,22 +10,17 @@
 
   1) نفس FIREBASE_CONFIG المستخدم في index.html بالظبط (متظبط تحت بالفعل).
 
-  2) فعّل تسجيل الدخول بالإيميل:
+  2) فعّل Email/Password بس (من غير Email Link):
      console.firebase.google.com → مشروعك
      → Authentication > Sign-in method > Email/Password → فعّله
-     → في نفس الإعداد فعّل زر "Email link (passwordless sign-in)"
-     (ده مجاني تمامًا على خطة Spark، ومش محتاج Identity Platform ولا TOTP)
+     (سيب "Email link (passwordless sign-in)" مقفول، مش محتاجينه في النسخة دي)
 
-  3) Authentication > Settings > Authorized domains:
-     تأكد إن الدومين اللي هترفع عليه الصفحة (مثلاً your-name.github.io) موجود
-     في القائمة، وإلا رابط الإيميل مش هيشتغل.
-
-  4) اعمل أول Admin يدويًا:
+  3) اعمل أول Admin يدويًا:
      Firebase Console > Authentication > Add user (إيميل حقيقي + باسورد)
      → انسخ الـ UID → Firestore > أنشئ collection "admins" → Document ID = الـ UID
      (أي محتوى بسيط جوه الـ Document، مش لازم حقول معينة)
 
-  5) قواعد Firestore (مهم جدًا — الحماية الحقيقية هنا مش في الصفحة):
+  4) قواعد Firestore (مهم جدًا — الحماية الحقيقية هنا مش في الصفحة):
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
@@ -53,14 +48,27 @@
      }
      (النسخة دي مبدئية للتوجيه — راجعها وعدّلها حسب احتياجك الفعلي قبل النشر)
 
-  6) طريقة الدخول:
-     إيميل + باسورد → لو الحساب موجود في admins → بيتبعت رابط تحقق لنفس
-     الإيميل → لازم تدوس عليه عشان تدخل فعليًا. الجلسة الأولى (بعد الباسورد)
-     بتتقفل تلقائيًا وبتتفتح تاني بس بعد الرابط — يعني حتى لو حد عرف الباسورد
-     وحده، مش هيقدر يدخل من غير ما يوصل لصندوق بريدك.
+  5) إعداد App Check (reCAPTCHA Enterprise) — طبقة الحماية الثانية بدل Email Link:
+     أ) Google Cloud Console → reCAPTCHA Enterprise → أنشئ مفتاح جديد نوعه "Website"،
+        وحط فيه الدومين اللي هترفع عليه الصفحة (مثلاً levelup-arabi.github.io).
+        سيب خيار "Use checkbox challenge" غير مفعّل (عشان يفضل invisible/score-based).
+     ب) Firebase Console → Build → App Check → سجّل تطبيق الويب بتاعك واختار
+        reCAPTCHA Enterprise، وحط نفس الـ site key اللي عملته فوق.
+     ج) ارجع هنا وحط نفس الـ site key في المتغير APPCHECK_SITE_KEY تحت في الكود.
+     د) **متفعّلش Enforcement في App Check دلوقتي.** سيبه في وضع المراقبة (Monitor)
+        كام يوم عشان تتأكد إن الموقع شغال طبيعي، وبعدين فعّل Enforcement من
+        Firebase Console → App Check → APIs (Firestore/Auth) → Enforce.
+     هـ) للتجربة على localhost قبل ما تضيف الدومين الحقيقي، الكود تحت بيفعّل
+        Debug Token تلقائيًا على localhost/127.0.0.1 عشان ميرفضكش وانت بتظبط.
+
+  6) طريقة الدخول الجديدة (من غير Email Link):
+     إيميل + باسورد → Firebase Auth → فحص admins/{uid} → لو موجود، تدخل
+     اللوحة على طول. الحماية بقت في: (أ) قواعد Firestore، (ب) App Check
+     بعد تفعيل الـ Enforcement.
 
   7) الصفحة دي (admin.html) منفصلة عن index.html، ورابطها ميتحطش في أي
-     مكان ظاهر للطلاب.
+     مكان ظاهر للطلاب. وتسجيل الطلاب بجوجل في index.html مش بيتأثر خالص،
+     لأنه Authentication منفصل تمامًا وقواعد Firestore هي اللي بتفصل الصلاحيات.
 ============================================================ -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -108,8 +116,6 @@
   .pill.suspended{background:rgba(245,158,11,.12);color:var(--amber);}
   .hidden{display:none !important;}
   .err-text{color:var(--red);font-size:12px;margin-top:6px;}
-  .code-box{font-family:monospace;font-size:16px;background:#eefaf6;border:1.5px dashed var(--primary);
-    border-radius:10px;padding:12px;text-align:center;letter-spacing:1px;word-break:break-all;margin:10px 0;}
   .notice{background:#fff7e6;border:1px solid #fde3ad;border-radius:12px;padding:10px 12px;font-size:11.5px;margin-bottom:14px;color:#92650c;}
 </style>
 </head>
@@ -140,30 +146,6 @@
     </div>
   </section>
 
-  <section id="screen-checkEmail" class="hidden">
-    <div style="max-width:360px;margin:60px auto 0;" class="center">
-      <h2>📧 افتح بريدك</h2>
-      <p class="muted" style="font-size:13.5px;">
-        بعتنا رابط تأكيد إلى <b id="checkEmailAddr" style="color:var(--text);"></b>.
-        افتحه من نفس الجهاز عشان يدخلك على طول للوحة الإدارة.
-      </p>
-      <div class="notice" style="text-align:right;">لو مش لاقيه، اتأكد من الرسائل غير الهامة (Spam). الرابط بينتهي بعد فترة قصيرة لو ما اتستخدمش.</div>
-      <button class="btn-primary" style="width:100%;" onclick="resendLink()">إعادة إرسال الرابط</button>
-      <button class="link" style="margin-top:10px;" onclick="go('login')">← رجوع لتسجيل الدخول</button>
-      <div id="checkEmailErr" class="err-text"></div>
-    </div>
-  </section>
-
-  <section id="screen-confirmEmail" class="hidden">
-    <div style="max-width:340px;margin:60px auto 0;">
-      <h2 class="center">🔐 أكّد بريدك</h2>
-      <p class="muted center" style="font-size:13px;">فتحت الرابط من جهاز مختلف عن اللي سجّلت منه — اكتب نفس الإيميل تاني للتأكيد.</p>
-      <div class="field"><label>الإيميل</label><input id="confirmEmailInput" onkeydown="if(event.key==='Enter')confirmEmailSubmit()"/></div>
-      <button class="btn-primary" style="width:100%;" onclick="confirmEmailSubmit()">تأكيد الدخول</button>
-      <div id="confirmEmailErr" class="err-text"></div>
-    </div>
-  </section>
-
   <section id="screen-admin" class="hidden">
     <h2 style="margin-top:16px;">👥 لوحة التحكم</h2>
     <div class="tabs">
@@ -179,14 +161,16 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection,
+  getFirestore, doc, getDoc, updateDoc, deleteDoc, collection,
   addDoc, query, where, getDocs, onSnapshot, orderBy, limit, writeBatch,
-  serverTimestamp, enableIndexedDbPersistence
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  initializeAppCheck, ReCaptchaEnterpriseProvider
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 
 /* ====================== لازم يطابق index.html بالظبط ====================== */
 const FIREBASE_CONFIG = {
@@ -200,13 +184,36 @@ const FIREBASE_CONFIG = {
 /* ============================================================================ */
 
 const app = initializeApp(FIREBASE_CONFIG);
+
+/* ====================== App Check (reCAPTCHA Enterprise) ======================
+   حط هنا الـ site key اللي عملته في Google Cloud Console > reCAPTCHA Enterprise
+   وسجّلته في Firebase Console > App Check. لحد ما تحطه، الكود بيتخطى تفعيل
+   App Check تلقائيًا (من غير ما يكسر تسجيل الدخول)، ويطبع تحذير في الـConsole. */
+const APPCHECK_SITE_KEY = 'ضع_مفتاح_reCAPTCHA_Enterprise_هنا';
+
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  // بيسمحلك تجرب من جهازك قبل ما تضيف الدومين الحقيقي في reCAPTCHA/App Check.
+  // بعد أول تشغيل هتلاقي في الـConsole تحذير فيه رابط لتسجيل الـdebug token
+  // في Firebase Console > App Check > Manage debug tokens.
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+if (APPCHECK_SITE_KEY && APPCHECK_SITE_KEY !== 'ضع_مفتاح_reCAPTCHA_Enterprise_هنا') {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+    console.log('✅ App Check اتفعّل (لسه في وضع المراقبة لحد ما تفعّل Enforcement من الكونسول).');
+  } catch (e) {
+    console.error('❌ تعذّر تفعيل App Check:', e);
+  }
+} else {
+  console.warn('⚠️ App Check لسه مش متفعّل: حط الـ site key بتاعك في APPCHECK_SITE_KEY في admin.html.');
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
-// enableIndexedDbPersistence(db).catch(()=>{}); // متشالة مؤقتًا وقت تصحيح مشكلة تسجيل الدخول (مالهاش علاقة بـ Auth أصلًا، لكن بتقلل عوامل التعقيد)
-
-const EMAIL_STORAGE_KEY = 'adminEmailForSignIn';
-let transientAuthCheck = false; // true بينع onAuthStateChanged من التصرف أثناء خطوة التحقق من الباسورد
-let lastLoginEmail = '';
 
 function go(screen){
   document.querySelectorAll('section[id^="screen-"]').forEach(s=>s.classList.add('hidden'));
@@ -219,84 +226,24 @@ window.go = go;
 function toMillis(t){ if(!t) return Date.now(); if(typeof t.toMillis==='function') return t.toMillis(); return t; }
 function fmtTime(t){ return new Date(toMillis(t)).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}); }
 
-// ---------------- step 1: email + password ----------------
+// ---------------- تسجيل الدخول: إيميل + باسورد فقط ----------------
 window.login = async function(){
   const email = document.getElementById('loginEmail').value.trim();
   const pw = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginErr'); errEl.textContent='';
   if(!email || !pw) return;
   const btn = document.getElementById('loginBtn'); btn.disabled = true;
-  transientAuthCheck = true;
   try{
-    console.log('1) بمحاول أدخل بالباسورد...');
-    const cred = await signInWithEmailAndPassword(auth, email, pw);
-    console.log('2) الباسورد صح. UID:', cred.user.uid);
-
-    const adminDoc = await getDoc(doc(db,'admins',cred.user.uid));
-    console.log('3) نتيجة فحص admins/{uid}:', adminDoc.exists());
-    if(!adminDoc.exists()){
-      await signOut(auth);
-      errEl.textContent = 'الحساب ده مش أدمن.';
-      return;
-    }
-
-    // الباسورد صح والحساب أدمن → ابعت رابط التحقق، واقفل الجلسة المؤقتة دي
-    console.log('4) بمحاول ابعت Email Link إلى:', email);
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings());
-    console.log('5) ✅ Firebase قالت إن الرابط اتبعت (ده مش دليل إن الرسالة وصلت الصندوق فعليًا، بس إن الطلب اتقبل من غير خطأ)');
-
-    window.localStorage.setItem(EMAIL_STORAGE_KEY, email);
-    lastLoginEmail = email;
-    await signOut(auth);
-    document.getElementById('checkEmailAddr').textContent = email;
-    document.getElementById('checkEmailErr').textContent = 'تم طلب إرسال الرابط بنجاح. راجع البريد والـSpam.';
-    go('checkEmail');
+    await signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChanged هيتكفل بالباقي: فحص admins/{uid} ثم عرض اللوحة أو الرفض
   }catch(err){
-    // مؤقتًا بنعرض رسالة الخطأ الحقيقية من Firebase للتشخيص (auth/user-not-found، auth/wrong-password،
-    // auth/unauthorized-continue-uri، auth/invalid-continue-uri، auth/operation-not-allowed، إلخ).
+    // مؤقتًا بنعرض رسالة الخطأ الحقيقية من Firebase للتشخيص.
     // لما تتأكد إن الدخول بيشتغل تمام، رجّع الرسالة العامة تاني قبل النشر النهائي:
     // errEl.textContent = 'إيميل أو كلمة مرور غلط.';
-    errEl.textContent = 'فشل: ' + err.message + ' (' + err.code + ')';
-    console.error('❌ Firebase Auth Error:', err);
+    errEl.textContent = 'فشل الدخول: ' + err.message + ' (' + err.code + ')';
+    console.error('Firebase Auth Error:', err);
   }finally{
     btn.disabled = false;
-    transientAuthCheck = false;
-  }
-}
-
-function actionCodeSettings(){
-  return { url: window.location.origin + window.location.pathname, handleCodeInApp: true };
-}
-
-window.resendLink = async function(){
-  const errEl = document.getElementById('checkEmailErr'); errEl.textContent='';
-  if(!lastLoginEmail){ go('login'); return; }
-  try{
-    await sendSignInLinkToEmail(auth, lastLoginEmail, actionCodeSettings());
-  }catch(err){
-    errEl.textContent = 'تعذّر إعادة الإرسال، جرّب تاني بعد شوية.';
-  }
-}
-
-// ---------------- step 2: confirm the email link ----------------
-window.confirmEmailSubmit = async function(){
-  const email = document.getElementById('confirmEmailInput').value.trim();
-  const errEl = document.getElementById('confirmEmailErr'); errEl.textContent='';
-  if(!email) return;
-  await completeEmailLinkSignIn(email);
-}
-
-async function completeEmailLinkSignIn(email){
-  try{
-    await signInWithEmailLink(auth, email, window.location.href);
-    window.localStorage.removeItem(EMAIL_STORAGE_KEY);
-    history.replaceState(null, '', window.location.pathname);
-    // onAuthStateChanged هيتصرف من هنا ويكمل التحقق ويفتح اللوحة
-  }catch(err){
-    const el = document.getElementById('confirmEmailErr') || document.getElementById('checkEmailErr');
-    if(el) el.textContent = 'الرابط غير صالح أو منتهي، سجّل دخول من جديد.';
-    history.replaceState(null, '', window.location.pathname);
-    go('login');
   }
 }
 
@@ -440,32 +387,11 @@ function loadAdminLog(){
 
 // ---------------- boot ----------------
 onAuthStateChanged(auth, (user)=>{
-  if(transientAuthCheck) return; // متجاهلين تغييرات الحالة أثناء خطوة الباسورد المؤقتة أو استكمال رابط الإيميل
-  // لو المستخدم لسه في شاشة "أكّد بريدك" (فتح الرابط من جهاز مختلف)، سيبه يكمل إدخال الإيميل
-  // من غير ما afterFullVerification يتدخل قبل الأوان.
-  const confirmScreen = document.getElementById('screen-confirmEmail');
-  if(confirmScreen && !confirmScreen.classList.contains('hidden')) return;
   if(!user){ go('login'); return; }
   afterFullVerification(user);
 });
 
-(async function boot(){
-  go('loading'); // شاشة تحميل فقط لحد ما نقرر أي شاشة تظهر فعليًا
-  if(isSignInWithEmailLink(auth, window.location.href)){
-    transientAuthCheck = true;
-    const savedEmail = window.localStorage.getItem(EMAIL_STORAGE_KEY);
-    if(savedEmail){
-      await completeEmailLinkSignIn(savedEmail);
-      transientAuthCheck = false;
-    } else {
-      // فُتح الرابط من جهاز/متصفح مختلف عن اللي سجّل منه — نطلب تأكيد الإيميل
-      transientAuthCheck = false;
-      go('confirmEmail');
-    }
-  } else {
-    go('login');
-  }
-})();
+go('loading'); // شاشة تحميل فقط لحد ما onAuthStateChanged يقرر الوجهة الصح
 
 </script>
 </body>
