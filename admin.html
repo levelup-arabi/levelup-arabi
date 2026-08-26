@@ -1,30 +1,32 @@
+
+Admin · HTML
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>لوحة إدارة LevelUp بالعربي</title>
-
+ 
 <!-- ============================================================
   خطوات لازمة قبل التشغيل:
-
+ 
   1) نفس FIREBASE_CONFIG المستخدم في index.html بالظبط (متظبط تحت بالفعل).
-
+ 
   2) فعّل تسجيل الدخول بالإيميل:
      console.firebase.google.com → مشروعك
      → Authentication > Sign-in method > Email/Password → فعّله
      → في نفس الإعداد فعّل زر "Email link (passwordless sign-in)"
      (ده مجاني تمامًا على خطة Spark، ومش محتاج Identity Platform ولا TOTP)
-
+ 
   3) Authentication > Settings > Authorized domains:
      تأكد إن الدومين اللي هترفع عليه الصفحة (مثلاً your-name.github.io) موجود
      في القائمة، وإلا رابط الإيميل مش هيشتغل.
-
+ 
   4) اعمل أول Admin يدويًا:
      Firebase Console > Authentication > Add user (إيميل حقيقي + باسورد)
      → انسخ الـ UID → Firestore > أنشئ collection "admins" → Document ID = الـ UID
      (أي محتوى بسيط جوه الـ Document، مش لازم حقول معينة)
-
+ 
   5) قواعد Firestore (مهم جدًا — الحماية الحقيقية هنا مش في الصفحة):
      rules_version = '2';
      service cloud.firestore {
@@ -52,21 +54,21 @@
        }
      }
      (النسخة دي مبدئية للتوجيه — راجعها وعدّلها حسب احتياجك الفعلي قبل النشر)
-
+ 
   6) طريقة الدخول:
      إيميل + باسورد → لو الحساب موجود في admins → بيتبعت رابط تحقق لنفس
      الإيميل → لازم تدوس عليه عشان تدخل فعليًا. الجلسة الأولى (بعد الباسورد)
      بتتقفل تلقائيًا وبتتفتح تاني بس بعد الرابط — يعني حتى لو حد عرف الباسورد
      وحده، مش هيقدر يدخل من غير ما يوصل لصندوق بريدك.
-
+ 
   7) الصفحة دي (admin.html) منفصلة عن index.html، ورابطها ميتحطش في أي
      مكان ظاهر للطلاب.
 ============================================================ -->
-
+ 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-
+ 
 <style>
   :root{
     --bg:#f5faf8; --panel:#ffffff; --line:#e2ede9;
@@ -114,14 +116,14 @@
 </style>
 </head>
 <body>
-
+ 
 <div class="topbar"><div class="topbar-inner">
   <div class="brand"><div class="logo">🛡️</div> لوحة إدارة LevelUp بالعربي</div>
   <button id="logoutBtn" class="link hidden">خروج</button>
 </div></div>
-
+ 
 <div class="wrap">
-
+ 
   <section id="screen-login" class="hidden">
     <div style="max-width:340px;margin:60px auto 0;">
       <h2 class="center">دخول الإدارة</h2>
@@ -132,7 +134,7 @@
       <div id="loginErr" class="err-text"></div>
     </div>
   </section>
-
+ 
   <section id="screen-checkEmail" class="hidden">
     <div style="max-width:360px;margin:60px auto 0;" class="center">
       <h2>📧 افتح بريدك</h2>
@@ -146,7 +148,7 @@
       <div id="checkEmailErr" class="err-text"></div>
     </div>
   </section>
-
+ 
   <section id="screen-confirmEmail" class="hidden">
     <div style="max-width:340px;margin:60px auto 0;">
       <h2 class="center">🔐 أكّد بريدك</h2>
@@ -156,7 +158,7 @@
       <div id="confirmEmailErr" class="err-text"></div>
     </div>
   </section>
-
+ 
   <section id="screen-admin" class="hidden">
     <h2 style="margin-top:16px;">👥 لوحة التحكم</h2>
     <div class="tabs">
@@ -166,9 +168,9 @@
     <div id="adminTab-students"><div id="adminStudentList"></div></div>
     <div id="adminTab-log" class="hidden"><div id="adminLogList"></div></div>
   </section>
-
+ 
 </div>
-
+ 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -180,7 +182,7 @@ import {
   addDoc, query, where, getDocs, onSnapshot, orderBy, limit, writeBatch,
   serverTimestamp, enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
+ 
 /* ====================== لازم يطابق index.html بالظبط ====================== */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBCJLeAL6qSd_DQ1kZuTGoMuUDxpjchnwU",
@@ -191,16 +193,16 @@ const FIREBASE_CONFIG = {
   appId: "1:568182555978:web:4eafcdd4503d3b378e6db3"
 };
 /* ============================================================================ */
-
+ 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getFirestore(app);
 enableIndexedDbPersistence(db).catch(()=>{});
-
+ 
 const EMAIL_STORAGE_KEY = 'adminEmailForSignIn';
 let transientAuthCheck = false; // true بينع onAuthStateChanged من التصرف أثناء خطوة التحقق من الباسورد
 let lastLoginEmail = '';
-
+ 
 function go(screen){
   document.querySelectorAll('section[id^="screen-"]').forEach(s=>s.classList.add('hidden'));
   document.getElementById('screen-'+screen).classList.remove('hidden');
@@ -208,10 +210,10 @@ function go(screen){
 }
 document.getElementById('logoutBtn').onclick = ()=> signOut(auth).then(()=>go('login'));
 window.go = go;
-
+ 
 function toMillis(t){ if(!t) return Date.now(); if(typeof t.toMillis==='function') return t.toMillis(); return t; }
 function fmtTime(t){ return new Date(toMillis(t)).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}); }
-
+ 
 // ---------------- step 1: email + password ----------------
 window.login = async function(){
   const email = loginEmail.value.trim(), pw = loginPassword.value;
@@ -236,17 +238,21 @@ window.login = async function(){
     document.getElementById('checkEmailErr').textContent = '';
     go('checkEmail');
   }catch(err){
-    errEl.textContent = 'إيميل أو كلمة مرور غلط.';
+    // مؤقتًا بنعرض رسالة الخطأ الحقيقية من Firebase للتشخيص (auth/user-not-found، auth/wrong-password، إلخ).
+    // لما تتأكد إن الدخول بيشتغل تمام، رجّع الرسالة العامة تاني قبل النشر النهائي:
+    // errEl.textContent = 'إيميل أو كلمة مرور غلط.';
+    errEl.textContent = 'فشل الدخول: ' + err.message + ' (' + err.code + ')';
+    console.error('Firebase Auth Error:', err);
   }finally{
     btn.disabled = false;
     transientAuthCheck = false;
   }
 }
-
+ 
 function actionCodeSettings(){
   return { url: window.location.origin + window.location.pathname, handleCodeInApp: true };
 }
-
+ 
 window.resendLink = async function(){
   const errEl = document.getElementById('checkEmailErr'); errEl.textContent='';
   if(!lastLoginEmail){ go('login'); return; }
@@ -256,7 +262,7 @@ window.resendLink = async function(){
     errEl.textContent = 'تعذّر إعادة الإرسال، جرّب تاني بعد شوية.';
   }
 }
-
+ 
 // ---------------- step 2: confirm the email link ----------------
 window.confirmEmailSubmit = async function(){
   const email = confirmEmailInput.value.trim();
@@ -264,7 +270,7 @@ window.confirmEmailSubmit = async function(){
   if(!email) return;
   await completeEmailLinkSignIn(email);
 }
-
+ 
 async function completeEmailLinkSignIn(email){
   try{
     await signInWithEmailLink(auth, email, window.location.href);
@@ -278,7 +284,7 @@ async function completeEmailLinkSignIn(email){
     go('login');
   }
 }
-
+ 
 async function afterFullVerification(user){
   const adminDoc = await getDoc(doc(db,'admins',user.uid));
   if(!adminDoc.exists()){
@@ -289,47 +295,82 @@ async function afterFullVerification(user){
   }
   go('admin'); loadAdminStudents(); loadAdminLog();
 }
-
+ 
 // ---------------- tabs ----------------
 window.setAdminTab = function(tab){
   document.querySelectorAll('#screen-admin .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   ['students','log'].forEach(t=> document.getElementById('adminTab-'+t).classList.toggle('hidden', t!==tab));
 }
-
+ 
 function addAdminLog(action){
   addDoc(collection(db,'adminLog'), {action, time: serverTimestamp()});
 }
-
+ 
 // ---------------- students ----------------
 function loadAdminStudents(){
   onSnapshot(collection(db,'students'), snap=>{
-    const wrap = document.getElementById('adminStudentList'); wrap.innerHTML='';
-    if(snap.empty){ wrap.innerHTML='<p class="muted">لا يوجد طلاب بعد.</p>'; return; }
+    const wrap = document.getElementById('adminStudentList');
+    wrap.textContent = '';
+    if(snap.empty){
+      const p = document.createElement('p'); p.className='muted'; p.textContent='لا يوجد طلاب بعد.';
+      wrap.appendChild(p); return;
+    }
     snap.forEach(d=>{
       const s = {id:d.id, ...d.data()};
-      const div = document.createElement('div'); div.className='list-item';
-      div.innerHTML = `
-        <div class="row" style="justify-content:space-between;align-items:center;">
-          <div><b>${s.name}</b> <span class="pill ${s.active===false?'suspended':'active'}">${s.active===false?'موقوف':'فعال'}</span>
-            <div class="muted" style="font-size:12px;">${s.username||''} · ${s.track||'بدون مسار'}</div></div>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <input placeholder="إشعار للطالب..." id="notifFor-${s.id}"/>
-          <button class="btn-primary" onclick="sendNotif('${s.id}','${s.name}')">إرسال</button>
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn-amber" style="flex:1;" onclick="toggleActive('${s.id}','${s.name}',${s.active!==false})">${s.active===false?'إعادة تفعيل':'تعطيل'}</button>
-          <button class="btn-danger" style="flex:1;" onclick="hardDeleteStudent('${s.id}','${s.name}')">حذف نهائي</button>
-        </div>`;
-      wrap.appendChild(div);
+      wrap.appendChild(buildStudentCard(s));
     });
   });
 }
-window.toggleActive = function(id,name,currentlyActive){
+ 
+// كل قيمة قادمة من Firestore (اسم، يوزر، مسار) بتتحط كـ textContent فقط،
+// والأزرار بتاخد بياناتها عبر closures حقيقية مش عبر تركيب سلاسل onclick="..."،
+// عشان نمنع كل من XSS (innerHTML) وحقن جافاسكريبت داخل attribute (onclick).
+function buildStudentCard(s){
+  const div = document.createElement('div'); div.className='list-item';
+ 
+  const row1 = document.createElement('div');
+  row1.className = 'row'; row1.style.justifyContent='space-between'; row1.style.alignItems='center';
+  const info = document.createElement('div');
+  const nameB = document.createElement('b'); nameB.textContent = s.name || '';
+  const pill = document.createElement('span');
+  pill.className = `pill ${s.active===false?'suspended':'active'}`;
+  pill.textContent = s.active===false ? 'موقوف' : 'فعال';
+  const subDiv = document.createElement('div');
+  subDiv.className = 'muted'; subDiv.style.fontSize = '12px';
+  subDiv.textContent = `${s.username||''} · ${s.track||'بدون مسار'}`;
+  info.appendChild(nameB);
+  info.appendChild(document.createTextNode(' '));
+  info.appendChild(pill);
+  info.appendChild(subDiv);
+  row1.appendChild(info);
+  div.appendChild(row1);
+ 
+  const row2 = document.createElement('div'); row2.className='row'; row2.style.marginTop='8px';
+  const notifInput = document.createElement('input'); notifInput.placeholder = 'إشعار للطالب...';
+  const sendBtn = document.createElement('button'); sendBtn.className='btn-primary'; sendBtn.textContent='إرسال';
+  sendBtn.addEventListener('click', ()=> sendNotif(s.id, s.name, notifInput));
+  row2.appendChild(notifInput); row2.appendChild(sendBtn);
+  div.appendChild(row2);
+ 
+  const row3 = document.createElement('div'); row3.className='row'; row3.style.marginTop='8px';
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className='btn-amber'; toggleBtn.style.flex='1';
+  toggleBtn.textContent = s.active===false ? 'إعادة تفعيل' : 'تعطيل';
+  toggleBtn.addEventListener('click', ()=> toggleActive(s.id, s.name, s.active!==false));
+  const delBtn = document.createElement('button');
+  delBtn.className='btn-danger'; delBtn.style.flex='1'; delBtn.textContent='حذف نهائي';
+  delBtn.addEventListener('click', ()=> hardDeleteStudent(s.id, s.name));
+  row3.appendChild(toggleBtn); row3.appendChild(delBtn);
+  div.appendChild(row3);
+ 
+  return div;
+}
+ 
+function toggleActive(id,name,currentlyActive){
   updateDoc(doc(db,'students',id), {active: !currentlyActive});
   addAdminLog(`${currentlyActive?'تعطيل':'إعادة تفعيل'} حساب: ${name}`);
 }
-window.hardDeleteStudent = async function(id,name){
+async function hardDeleteStudent(id,name){
   const sDoc = await getDoc(doc(db,'students',id));
   const typed = prompt(`ده حذف نهائي لبيانات ${name} (المهام، الجلسات، الإشعارات، السجل). اكتب اسم المستخدم بالظبط للتأكيد.`);
   if(!sDoc.exists() || typed !== sDoc.data().username){ if(typed!==null) alert('الاسم مش مطابق، اتلغت العملية.'); return; }
@@ -343,34 +384,40 @@ window.hardDeleteStudent = async function(id,name){
   addAdminLog(`حذف نهائي لحساب: ${name}`);
   alert('اتمسحت بيانات الحساب من قاعدة البيانات. حساب الدخول (Authentication) نفسه لسه محتاج يتشال يدويًا من Firebase Console > Authentication.');
 }
-window.sendNotif = function(id,name){
-  const el = document.getElementById('notifFor-'+id);
-  const text = el.value.trim(); if(!text) return;
+function sendNotif(id,name,inputEl){
+  const text = inputEl.value.trim(); if(!text) return;
   addDoc(collection(db,'notifications'), {studentId:id,text:'👨‍💼 من الإدارة: '+text,type:'admin',read:false,time:serverTimestamp()});
   addAdminLog(`إرسال إشعار لـ ${name}: ${text}`);
-  el.value='';
+  inputEl.value='';
 }
 function loadAdminLog(){
   onSnapshot(query(collection(db,'adminLog'), orderBy('time','desc'), limit(100)), snap=>{
-    const wrap = document.getElementById('adminLogList'); wrap.innerHTML='';
-    if(snap.empty){ wrap.innerHTML='<p class="muted">لا يوجد سجل بعد.</p>'; return; }
+    const wrap = document.getElementById('adminLogList');
+    wrap.textContent = '';
+    if(snap.empty){
+      const p = document.createElement('p'); p.className='muted'; p.textContent='لا يوجد سجل بعد.';
+      wrap.appendChild(p); return;
+    }
     snap.forEach(d=>{
       const l = d.data();
       const div = document.createElement('div'); div.className='list-item row';
       div.style.justifyContent='space-between'; div.style.fontSize='13px';
-      div.innerHTML = `<span>${l.action}</span><span class="muted" style="font-size:11px;">${fmtTime(l.time)}</span>`;
+      const actionSpan = document.createElement('span'); actionSpan.textContent = l.action || '';
+      const timeSpan = document.createElement('span'); timeSpan.className='muted'; timeSpan.style.fontSize='11px';
+      timeSpan.textContent = fmtTime(l.time);
+      div.appendChild(actionSpan); div.appendChild(timeSpan);
       wrap.appendChild(div);
     });
   });
 }
-
+ 
 // ---------------- boot ----------------
 onAuthStateChanged(auth, (user)=>{
   if(transientAuthCheck) return; // متجاهلين تغييرات الحالة أثناء خطوة الباسورد المؤقتة
   if(!user){ go('login'); return; }
   afterFullVerification(user);
 });
-
+ 
 (async function boot(){
   if(isSignInWithEmailLink(auth, window.location.href)){
     transientAuthCheck = true;
@@ -387,7 +434,8 @@ onAuthStateChanged(auth, (user)=>{
     go('login');
   }
 })();
-
+ 
 </script>
 </body>
 </html>
+ 
