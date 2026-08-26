@@ -345,13 +345,15 @@ function buildStudentCard(s){
   pill.textContent = s.active===false ? 'موقوف' : 'فعال';
   const subDiv = document.createElement('div');
   subDiv.className = 'muted'; subDiv.style.fontSize = '12px';
-  subDiv.textContent = `${s.username||''} · ${s.track||'بدون مسار'}`;
+  subDiv.textContent = `${s.username||''}`;
   info.appendChild(nameB);
   info.appendChild(document.createTextNode(' '));
   info.appendChild(pill);
   info.appendChild(subDiv);
   row1.appendChild(info);
   div.appendChild(row1);
+
+  div.appendChild(buildStudentCurriculumDetail(s));
 
   const row2 = document.createElement('div'); row2.className='row'; row2.style.marginTop='8px';
   const notifInput = document.createElement('input'); notifInput.placeholder = 'إشعار للطالب...';
@@ -372,6 +374,55 @@ function buildStudentCard(s){
   div.appendChild(row3);
 
   return div;
+}
+
+// عرض تفصيلي للصف/النظام/المسار والمواد المختارة، بدل نص "track" القديم بس.
+// بيدعم بيانات الطلاب القدامى (اللي كان عندهم track نصي بس، من غير gradeId/selectedSubjects).
+function buildStudentCurriculumDetail(s){
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);';
+
+  const chipsRow = document.createElement('div');
+  chipsRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;';
+  const mkChip = (text, bg, color)=>{
+    const c = document.createElement('span');
+    c.style.cssText = `font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${bg};color:${color};`;
+    c.textContent = text;
+    return c;
+  };
+  if(s.gradeName) chipsRow.appendChild(mkChip('📚 '+s.gradeName, 'rgba(31,167,126,.1)', 'var(--mint)'));
+  if(s.systemName) chipsRow.appendChild(mkChip('🏫 '+s.systemName, 'rgba(47,176,196,.12)', 'var(--primary-2)'));
+  if(s.trackName || s.track) chipsRow.appendChild(mkChip('🛤️ '+(s.trackName||s.track), '#f0f5f3', 'var(--text)'));
+  if(!chipsRow.children.length){
+    const none = document.createElement('span'); none.className='muted'; none.style.fontSize='12px';
+    none.textContent = 'بدون مسار دراسي محدد';
+    box.appendChild(none);
+    return box;
+  }
+  box.appendChild(chipsRow);
+
+  const addSubjLine = (label, names)=>{
+    if(!names || !names.length) return;
+    const line = document.createElement('div');
+    line.style.cssText = 'font-size:11.5px;color:var(--muted);margin-top:2px;';
+    const b = document.createElement('b'); b.style.color='var(--text)'; b.style.fontWeight='700'; b.textContent = label+': ';
+    line.appendChild(b);
+    line.appendChild(document.createTextNode(names.join('، ')));
+    box.appendChild(line);
+  };
+
+  if(s.requiredSubjects && s.requiredSubjects.length){
+    addSubjLine('📗 مواد ثابتة', s.requiredSubjects.map(x=>x.name));
+  }
+  if(s.selectedSubjects && s.selectedSubjects.length){
+    s.selectedSubjects.forEach(g=>{
+      addSubjLine('🔀 '+g.groupTitle, (g.options||[]).map(x=>x.name));
+    });
+  }
+  if(s.outsideSubjects && s.outsideSubjects.length){
+    addSubjLine('📙 خارج المجموع', s.outsideSubjects.map(x=>x.name));
+  }
+  return box;
 }
 
 function toggleActive(id,name,currentlyActive){
