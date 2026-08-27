@@ -115,6 +115,18 @@
   .progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-2));border-radius:99px;transition:.3s;}
   .divider-text{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:14px 0;}
   .divider-text::before,.divider-text::after{content:"";flex:1;height:1px;background:var(--line);}
+  .menu-wrap{position:relative;}
+  .menu-btn{color:var(--muted);font-size:16px;background:none;border:none;padding:2px 4px;line-height:1;}
+  .menu-dropdown{position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid var(--line);
+    box-shadow:var(--shadow);border-radius:14px;min-width:180px;padding:6px;z-index:30;}
+  .menu-dropdown button{display:block;width:100%;text-align:right;background:none;border:none;
+    padding:10px 12px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--text);}
+  .menu-dropdown button:hover{background:var(--bg);}
+  .menu-dropdown button.accent{color:var(--primary);}
+  .account-row{background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:16px;
+    padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+  .account-row .lbl{color:var(--muted);font-size:12px;flex-shrink:0;}
+  .account-row .val{font-weight:700;text-align:left;font-size:13.5px;word-break:break-word;}
 </style>
 </head>
 <body>
@@ -129,6 +141,15 @@
   <div class="status">
     <span id="offlineNotice" class="hidden off">○ <span class="off-label">أوفلاين غير مفعّل</span></span>
     <span id="netStatus" class="on">● متصل</span>
+    <div id="menuWrap" class="menu-wrap hidden">
+      <button id="menuBtn" class="menu-btn" onclick="toggleMenu()">☰</button>
+      <div id="menuDropdown" class="menu-dropdown hidden">
+        <button onclick="closeMenuAnd(()=>{ go('student'); setStudentTab('home'); })">🏠 الرئيسية</button>
+        <button onclick="closeMenuAnd(()=>{ go('student'); setStudentTab('study'); })">📚 المذاكرة</button>
+        <button onclick="closeMenuAnd(()=>{ go('student'); setStudentTab('notif'); })">🔔 الإشعارات</button>
+        <button class="accent" onclick="closeMenuAnd(openAccountScreen)">👤 حسابي</button>
+      </div>
+    </div>
     <button id="logoutBtn" class="link hidden">خروج</button>
   </div>
 </div></div>
@@ -143,40 +164,11 @@
       <h1>LevelUp بالعربي</h1>
       <p class="muted" style="margin-bottom:34px;">منصتك لتنظيم المذاكرة، متابعة تقدمك، وتحدي أصحابك</p>
       <div style="max-width:340px;margin:0 auto;">
-        <button class="btn-google" style="width:100%;margin-bottom:10px;" onclick="googleLogin()">
+        <button class="btn-google" style="width:100%;" onclick="googleLogin()">
           <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.4 29.4 35.5 24 35.5c-6.9 0-12.5-5.6-12.5-12.5S17.1 10.5 24 10.5c3.2 0 6.1 1.2 8.3 3.2l5.7-5.7C34.6 4.9 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 18.9 12.5 24 12.5c3.2 0 6.1 1.2 8.3 3.2l5.7-5.7C34.6 6.9 29.6 5 24 5c-7.5 0-14 4.2-17.7 10.4z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.2-5.1l-6.5-5.5c-2.1 1.4-4.7 2.3-7.7 2.3-5.4 0-9.9-3.3-11.6-8L5.6 33C9.2 40 16.1 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.9 2.6-2.6 4.8-4.8 6.4l6.5 5.5C40.6 36.9 44 31.5 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>
           دخول بحساب Google
         </button>
-        <div class="divider-text">أو بـ PIN</div>
-        <button class="card" style="width:100%;" onclick="go('studentAuth')">
-          <div style="font-weight:700;">دخول باسم مستخدم و PIN</div>
-        </button>
       </div>
-    </div>
-  </section>
-
-  <section id="screen-studentAuth" class="hidden">
-    <button class="link" onclick="go('landing')">← رجوع</button>
-    <div class="tabs">
-      <button class="tab active" data-authtab="login" onclick="setAuthTab('login')">دخول</button>
-      <button class="tab" data-authtab="new" onclick="setAuthTab('new')">حساب جديد</button>
-    </div>
-    <div id="authTab-login" style="max-width:340px;">
-      <div class="field"><label>اسم المستخدم</label><input id="loginUsername"/></div>
-      <div class="field"><label>PIN (6 أرقام على الأقل)</label><input id="loginPin" type="password" maxlength="12"/></div>
-      <button class="btn-primary" style="width:100%;" onclick="studentLogin()">دخول</button>
-      <div id="loginErr" class="err-text"></div>
-    </div>
-    <div id="authTab-new" class="hidden" style="max-width:340px;">
-      <div class="field"><label>الاسم</label><input id="newName"/></div>
-      <div class="field"><label>اسم المستخدم</label><input id="newUsername"/></div>
-      <div class="field"><label>PIN (6 أرقام على الأقل)</label><input id="newPin" type="password" maxlength="12"/></div>
-      <div class="field">
-        <label>الصف / النظام / المسار الدراسي</label>
-        <div id="curPicker-new"></div>
-      </div>
-      <button class="btn-primary" style="width:100%;" onclick="createStudent()">التالي: مراجعة البيانات</button>
-      <div id="newErr" class="err-text"></div>
     </div>
   </section>
 
@@ -184,12 +176,16 @@
     <div style="max-width:340px;margin:40px auto 0;">
       <h2 class="center">كمّل بياناتك</h2>
       <div class="field"><label>الاسم</label><input id="cpName"/></div>
-      <div class="field"><label>اسم المستخدم</label><input id="cpUsername"/></div>
+      <div class="field">
+        <label>اسم المستخدم</label>
+        <input id="cpUsername"/>
+        <div class="muted" style="font-size:11px;margin-top:5px;">بالإنجليزي فقط (حروف a-z وأرقام و _ . )، ولازم يكون مختلف عن أي طالب تاني — هيتم التأكد إنه غير مكرر.</div>
+      </div>
       <div class="field">
         <label>الصف / النظام / المسار الدراسي</label>
         <div id="curPicker-cp"></div>
       </div>
-      <button class="btn-primary" style="width:100%;" onclick="completeProfile()">التالي: مراجعة البيانات</button>
+      <button class="btn-primary" style="width:100%;" id="cpSubmitBtn" onclick="completeProfile()">التالي: مراجعة البيانات</button>
       <div id="cpErr" class="err-text"></div>
     </div>
   </section>
@@ -239,7 +235,7 @@
 
     <div id="stuTab-notif" class="hidden">
       <div class="list-item">
-        <div class="notice">تذكير محلي — بيشتغل عن طريق مؤقّت في الصفحة، يعني لازم الصفحة تفضل مفتوحة (تاب في الخلفية كفاية)؛ مش إشعار حقيقي بعد قفل الموقع تمامًا.</div>
+        <div class="notice">تذكير محلي — بيشتغل عن طريق مؤقّت في الصفحة، يعني لازم الصفحة تفضل مفتوحة (تاب في الخلفية كفاية)؛ مش إشعار حقيقي بعد قفل الموقع تمامًا. نفس الكلام على إشعارات الأدمن: لو الموقع مفتوح قدامك مش هتشوفها كإشعار برّه (هتلاقيها هنا)، ولو مقفول/في الخلفية هتوصلك برّه أول ما يبقى فيه نت.</div>
         <div class="row">
           <input id="remTime" type="time" style="flex:0 0 110px;"/>
           <input id="remText" placeholder="مثلاً: ابدأ مذاكرة الرياضيات"/>
@@ -248,6 +244,13 @@
       </div>
       <div id="notifList"></div>
     </div>
+  </section>
+
+  <section id="screen-account" class="hidden">
+    <button class="link" onclick="go('student')">← رجوع</button>
+    <h2 style="margin-top:10px;">حسابي</h2>
+    <p class="muted" style="font-size:12px;margin-top:-6px;">البيانات دي بتتسجل عندنا وبتبان للأدمن كمان.</p>
+    <div id="accountContent"></div>
   </section>
 
 </div>
@@ -262,7 +265,6 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "568182555978",
   appId: "1:568182555978:web:4eafcdd4503d3b378e6db3"
 };
-const EMAIL_DOMAIN = "student.local";
 /* ==================================================================== */
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -289,25 +291,141 @@ updateNet(navigator.onLine);
 
 function toMillis(t){ if(!t) return Date.now(); if(typeof t.toMillis==='function') return t.toMillis(); return t; }
 function fmtTime(t){ return new Date(toMillis(t)).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}); }
-function sanitizeUsername(u){ return (u||'').trim().toLowerCase().replace(/[^a-z0-9_.]/g,''); }
-function usernameToEmail(u){ return sanitizeUsername(u) + '@' + EMAIL_DOMAIN; }
+function isValidUsername(u){ return /^[a-z0-9_.]{3,20}$/.test(u||''); }
+async function isUsernameTaken(username, excludeUid){
+  const snap = await db.collection('students').where('username','==',username).limit(1).get();
+  if(snap.empty) return false;
+  if(excludeUid && snap.docs[0].id===excludeUid) return false;
+  return true;
+}
+
+// ---------------- اسم الجهاز (تقريبي، من الـ user agent) ----------------
+function getDeviceName(){
+  const ua = navigator.userAgent || '';
+  let os = 'جهاز غير معروف';
+  if(/Windows/i.test(ua)) os='Windows';
+  else if(/Android/i.test(ua)) os='Android';
+  else if(/iPad/i.test(ua)) os='iPad';
+  else if(/iPhone/i.test(ua)) os='iPhone';
+  else if(/Macintosh|Mac OS/i.test(ua)) os='Mac';
+  else if(/Linux/i.test(ua)) os='Linux';
+  let browser = '';
+  if(/Edg\//i.test(ua)) browser='Edge';
+  else if(/OPR\//i.test(ua)) browser='Opera';
+  else if(/Chrome\//i.test(ua) && !/Chromium/i.test(ua)) browser='Chrome';
+  else if(/CriOS\//i.test(ua)) browser='Chrome';
+  else if(/FxiOS\//i.test(ua) || /Firefox\//i.test(ua)) browser='Firefox';
+  else if(/Safari\//i.test(ua)) browser='Safari';
+  return browser ? (os+' - '+browser) : os;
+}
+const DEVICE_NAME = getDeviceName();
+
+// ==================================================================
+// حفظ محلي (localStorage) لآخر حاجة الطالب كان بيعملها — يفضل موجود
+// حتى لو عمل ريفريش أو قفل الصفحة بالغلط قبل ما تتبعت السيرفر.
+// ده منفصل عن مزامنة Firestore نفسها (اللي أصلاً شغالة أوفلاين وبترفع
+// أي بيانات محفوظة أول ما النت يرجع بفضل enablePersistence فوق).
+// ==================================================================
+function draftKey(){ return currentStudent ? ('levelup_draft_'+currentStudent.id) : null; }
+function loadDraft(){
+  const k = draftKey(); if(!k) return {};
+  try{ return JSON.parse(localStorage.getItem(k)||'{}'); }catch(e){ return {}; }
+}
+function saveDraft(patch){
+  const k = draftKey(); if(!k) return;
+  try{
+    const next = Object.assign(loadDraft(), patch);
+    localStorage.setItem(k, JSON.stringify(next));
+  }catch(e){ /* لو الـ localStorage ممتلئ أو متمنوع، تجاهل بهدوء */ }
+}
+
+// ==================================================================
+// تسجيل الجهاز/الـIP وأوقات فتح وقفل الجلسة (يبان للأدمن)
+// ==================================================================
+let currentIp = null;
+let sessionLogId = null;
+let sessionOpenedAtClient = null;
+let heartbeatInterval = null;
+
+async function fetchIp(){
+  try{
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    currentIp = data.ip || null;
+  }catch(e){ currentIp = null; }
+  return currentIp;
+}
+async function openLoginLog(){
+  sessionOpenedAtClient = new Date().toISOString();
+  await fetchIp();
+  try{
+    const ref = await db.collection('loginLogs').add({
+      studentId: currentStudent.id,
+      studentName: currentStudent.name,
+      username: currentStudent.username || null,
+      device: DEVICE_NAME,
+      userAgent: navigator.userAgent,
+      ip: currentIp,
+      open: true,
+      openedAt: FieldValue.serverTimestamp(),
+      openedAtClient: sessionOpenedAtClient,
+      lastSeenAt: FieldValue.serverTimestamp(),
+      closedAt: null,
+      closedAtClient: null
+    });
+    sessionLogId = ref.id;
+    db.collection('students').doc(currentStudent.id).update({
+      lastDevice: DEVICE_NAME, lastIp: currentIp,
+      lastLoginAt: FieldValue.serverTimestamp(), lastLoginAtClient: sessionOpenedAtClient,
+      email: (auth.currentUser && auth.currentUser.email) || null
+    }).catch(()=>{});
+    startHeartbeat();
+  }catch(e){ console.warn('تعذر تسجيل الجلسة:', e); }
+}
+function startHeartbeat(){
+  if(heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(()=>{
+    if(!sessionLogId) return;
+    db.collection('loginLogs').doc(sessionLogId).update({lastSeenAt:FieldValue.serverTimestamp()}).catch(()=>{});
+  }, 45000);
+}
+function closeLoginLog(){
+  if(!sessionLogId) return;
+  const closedAtClient = new Date().toISOString();
+  try{
+    db.collection('loginLogs').doc(sessionLogId).update({
+      closedAt: FieldValue.serverTimestamp(), closedAtClient, open:false
+    });
+  }catch(e){}
+  if(heartbeatInterval) clearInterval(heartbeatInterval);
+}
+window.addEventListener('beforeunload', closeLoginLog);
+window.addEventListener('pagehide', closeLoginLog);
+
+// ---------------- قائمة الحساب (فوق شمال) ----------------
+function toggleMenu(){ document.getElementById('menuDropdown').classList.toggle('hidden'); }
+function closeMenuAnd(fn){ document.getElementById('menuDropdown').classList.add('hidden'); fn(); }
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('menuWrap');
+  if(wrap && !wrap.classList.contains('hidden') && !wrap.contains(e.target)){
+    document.getElementById('menuDropdown').classList.add('hidden');
+  }
+});
 
 function go(screen){
   document.querySelectorAll('section[id^="screen-"]').forEach(s=>s.classList.add('hidden'));
   document.getElementById('screen-'+screen).classList.remove('hidden');
-  document.getElementById('logoutBtn').classList.toggle('hidden', screen!=='student');
+  const loggedIn = (screen==='student' || screen==='account');
+  document.getElementById('logoutBtn').classList.toggle('hidden', !loggedIn);
+  document.getElementById('menuWrap').classList.toggle('hidden', !loggedIn);
+  document.getElementById('menuDropdown').classList.add('hidden');
 }
-document.getElementById('logoutBtn').onclick = ()=> auth.signOut().then(()=>go('landing'));
-let curPickerNewInited = false;
-function setAuthTab(t){
-  document.querySelectorAll('#screen-studentAuth .tab').forEach(el=>el.classList.toggle('active', el.dataset.authtab===t));
-  document.getElementById('authTab-login').classList.toggle('hidden', t!=='login');
-  document.getElementById('authTab-new').classList.toggle('hidden', t!=='new');
-  if(t==='new' && !curPickerNewInited){
-    curPickerNewInited = true;
-    curPickerInit('curPicker-new');
-  }
-}
+document.getElementById('logoutBtn').onclick = ()=>{
+  if(timerInterval) clearInterval(timerInterval);
+  running = false;
+  closeLoginLog();
+  auth.signOut().then(()=>go('landing'));
+};
 
 // ---------------- Google sign-in ----------------
 function googleLogin(){
@@ -326,12 +444,23 @@ function googleLogin(){
     }
   }).catch(err=> alert('حصل خطأ في الدخول بجوجل: '+err.message));
 }
-function completeProfile(){
-  const name=cpName.value.trim(), username=cpUsername.value.trim();
+async function completeProfile(){
+  const name=cpName.value.trim(), username=cpUsername.value.trim().toLowerCase();
   const errEl=document.getElementById('cpErr'); errEl.textContent='';
   const curSel = curPickerGetSelection('curPicker-cp');
   if(!name||!username){ errEl.textContent='اكمل البيانات'; return; }
+  if(!isValidUsername(username)){ errEl.textContent='اسم المستخدم لازم يكون بالإنجليزي فقط (حروف a-z وأرقام و _ .) وبين 3 و20 حرف.'; return; }
   if(!curSel){ errEl.textContent='اختار الصف والنظام والمسار وكمّل اختيار المواد.'; return; }
+  const btn = document.getElementById('cpSubmitBtn');
+  btn.disabled = true; btn.textContent='جاري التحقق...';
+  try{
+    const taken = await isUsernameTaken(username, pendingGoogleUser && pendingGoogleUser.uid);
+    if(taken){ errEl.textContent='اسم المستخدم ده مستخدم بالفعل، جرّب اسم تاني.'; return; }
+  } catch(e){
+    errEl.textContent = 'تعذر التحقق من اسم المستخدم: '+e.message; return;
+  } finally {
+    btn.disabled=false; btn.textContent='التالي: مراجعة البيانات';
+  }
   reviewMode = 'cp';
   reviewPendingData = {name, username, curSel};
   renderReview(name, username, curSel);
@@ -368,35 +497,33 @@ function renderReview(name, username, curSel){
   if(curSel.outsideSubjects.length) reviewAddRow(wrap, 'مواد خارج المجموع', curSel.outsideSubjects.map(s=>s.name).join('، '));
 }
 function reviewGoBack(){
-  go(reviewMode==='new' ? 'studentAuth' : 'completeProfile');
+  go('completeProfile');
 }
-function reviewConfirm(){
+async function reviewConfirm(){
   const btn = document.getElementById('reviewConfirmBtn');
   const errEl = document.getElementById('reviewErr'); errEl.textContent='';
   const data = reviewPendingData, curSel = data.curSel;
   const track = curSel.trackName; // نص عرض مختصر للتوافق مع الأماكن اللي بتعرض track كنص
   btn.disabled = true; btn.textContent='جاري الإنشاء...';
   const restore = ()=>{ btn.disabled=false; btn.textContent='تأكيد وإنشاء الحساب'; };
+  try{
+    const taken = await isUsernameTaken(data.username, pendingGoogleUser.uid);
+    if(taken){ restore(); errEl.textContent='اسم المستخدم ده اتحجز لحد تاني، ارجع وغيّره.'; return; }
+  } catch(e){ restore(); errEl.textContent = 'تعذر التحقق من اسم المستخدم: '+e.message; return; }
   const studentDoc = {
     name: data.name, username: data.username, track,
+    email: pendingGoogleUser.email || null,
     gradeId: curSel.gradeId, gradeName: curSel.gradeName,
     systemId: curSel.systemId, systemName: curSel.systemName,
     trackId: curSel.trackId, trackName: curSel.trackName,
     requiredSubjects: curSel.requiredSubjects,
     outsideSubjects: curSel.outsideSubjects,
     selectedSubjects: curSel.selectedSubjects,
-    active:true, createdAt: FieldValue.serverTimestamp()
+    active:true, createdAt: FieldValue.serverTimestamp(), clientCreatedAt: new Date().toISOString(), createdOnDevice: DEVICE_NAME
   };
-  if(reviewMode==='new'){
-    auth.createUserWithEmailAndPassword(usernameToEmail(data.username), data.pin)
-      .then(cred => db.collection('students').doc(cred.user.uid).set(studentDoc)
-        .then(()=> enterStudent({id:cred.user.uid, name:data.name, username:data.username, track, active:true})))
-      .catch(err => { restore(); errEl.textContent = err.code === 'auth/email-already-in-use' ? 'اسم المستخدم مستخدم بالفعل.' : 'حصل خطأ: '+err.message; });
-  } else {
-    db.collection('students').doc(pendingGoogleUser.uid).set(studentDoc)
-      .then(()=> enterStudent({id:pendingGoogleUser.uid, name:data.name, username:data.username, track, active:true}))
-      .catch(e=> { restore(); errEl.textContent = e.message; });
-  }
+  db.collection('students').doc(pendingGoogleUser.uid).set(studentDoc)
+    .then(()=> enterStudent({id:pendingGoogleUser.uid, name:data.name, username:data.username, track, active:true, email:studentDoc.email}))
+    .catch(e=> { restore(); errEl.textContent = e.message; });
 }
 
 // ==================================================================
@@ -645,40 +772,57 @@ function curPickerRenderDone(containerId){
   if(curPickerOnSelectCallbacks[containerId]) curPickerOnSelectCallbacks[containerId](curPickerGetSelection(containerId));
 }
 
-// ---------------- username/PIN auth ----------------
-function studentLogin(){
-  const username = loginUsername.value.trim(), pin = loginPin.value;
-  document.getElementById('loginErr').textContent = '';
-  if(!username || !pin) return;
-  auth.signInWithEmailAndPassword(usernameToEmail(username), pin)
-    .then(cred => db.collection('students').doc(cred.user.uid).get())
-    .then(doc => {
-      if(!doc.exists){ document.getElementById('loginErr').textContent='الحساب غير موجود.'; auth.signOut(); return; }
-      const s = doc.data();
-      if(s.active === false){ document.getElementById('loginErr').textContent='الحساب موقوف مؤقتًا.'; auth.signOut(); return; }
-      enterStudent({id:doc.id, ...s});
-    })
-    .catch(err => { document.getElementById('loginErr').textContent = 'اسم المستخدم أو الـ PIN غلط.'; });
-}
-function createStudent(){
-  const name=newName.value.trim(), username=newUsername.value.trim(), pin=newPin.value;
-  const errEl = document.getElementById('newErr'); errEl.textContent='';
-  const curSel = curPickerGetSelection('curPicker-new');
-  if(!name||!username||!pin) { errEl.textContent='اكمل البيانات'; return; }
-  if(pin.length < 6){ errEl.textContent='الـ PIN لازم يكون 6 خانات على الأقل.'; return; }
-  if(!curSel){ errEl.textContent='اختار الصف والنظام والمسار وكمّل اختيار المواد.'; return; }
-  reviewMode = 'new';
-  reviewPendingData = {name, username, pin, curSel};
-  renderReview(name, username, curSel);
-  go('review');
-}
-
 function enterStudent(s){
   currentStudent = s;
   document.getElementById('stuName').textContent = s.name + ' 👋';
   go('student');
-  setStudentTab('home');
+  restoreDraft();
   loadTasks(); loadSessions(); loadNotifs();
+  openLoginLog();
+}
+
+// ---------------- شاشة "حسابي" ----------------
+async function openAccountScreen(){
+  await renderAccount();
+  go('account');
+}
+async function renderAccount(){
+  const wrap = document.getElementById('accountContent'); wrap.innerHTML='';
+  const s = currentStudent;
+  if(!currentIp) await fetchIp();
+  reviewAddRow(wrap, 'الاسم', s.name || '—');
+  reviewAddRow(wrap, 'البريد الإلكتروني', (auth.currentUser && auth.currentUser.email) || '—');
+  reviewAddRow(wrap, 'اسم المستخدم', s.username || '—');
+  if(s.gradeName) reviewAddRow(wrap, 'الصف', s.gradeName);
+  if(s.systemName) reviewAddRow(wrap, 'النظام', s.systemName);
+  if(s.trackName) reviewAddRow(wrap, 'المسار', s.trackName);
+  reviewAddRow(wrap, 'تاريخ إنشاء الحساب', s.clientCreatedAt ? fmtTime(s.clientCreatedAt) : (s.createdAt ? fmtTime(s.createdAt) : '—'));
+  reviewAddRow(wrap, 'الجهاز اللي اتسجل بيه الحساب', s.createdOnDevice || '—');
+  reviewAddRow(wrap, 'الجهاز الحالي', DEVICE_NAME);
+  reviewAddRow(wrap, 'عنوان الـ IP الحالي', currentIp || 'تعذر تحديده');
+  if(sessionOpenedAtClient){
+    reviewAddRow(wrap, 'وقت فتح الجلسة الحالية', fmtTime(sessionOpenedAtClient));
+    const mins = Math.max(0, Math.round((Date.now()-new Date(sessionOpenedAtClient).getTime())/60000));
+    reviewAddRow(wrap, 'مدة الجلسة الحالية', mins + ' دقيقة');
+  }
+}
+
+// استرجاع آخر حاجة كان الطالب بيعملها (بعد ريفريش أو رجوع لاحقًا)
+function restoreDraft(){
+  const d = loadDraft();
+  setStudentTab(d.tab || 'home');
+  if(typeof d.taskDraft === 'string') taskInput.value = d.taskDraft;
+  if(typeof d.remTimeDraft === 'string') remTime.value = d.remTimeDraft;
+  if(typeof d.remTextDraft === 'string') remText.value = d.remTextDraft;
+  if(d.timerRunning && d.timerStartedAt){
+    if(typeof d.timerSubject === 'string') subjectInput.value = d.timerSubject;
+    running = true; seconds = Math.max(0, Math.floor((Date.now()-d.timerStartedAt)/1000));
+    document.getElementById('timerBtn').textContent='⏸ إنهاء الجلسة';
+    updateTimerDisplay();
+    timerInterval = setInterval(()=>{ seconds++; updateTimerDisplay(); },1000);
+  } else if(typeof d.subjectDraft === 'string'){
+    subjectInput.value = d.subjectDraft;
+  }
 }
 
 // ---------------- tasks ----------------
@@ -708,34 +852,37 @@ function renderTasks(list){
 }
 function addTask(){
   const v = taskInput.value.trim(); if(!v) return;
-  db.collection('tasks').add({studentId:currentStudent.id,title:v,done:false,createdAt:FieldValue.serverTimestamp()});
+  db.collection('tasks').add({studentId:currentStudent.id,title:v,done:false,createdAt:FieldValue.serverTimestamp(),clientTime:new Date().toISOString(),device:DEVICE_NAME});
   logActivity('إضافة مهمة: '+v);
   taskInput.value='';
+  saveDraft({taskDraft:''});
 }
 function toggleTask(id,done){ db.collection('tasks').doc(id).update({done}); }
 function delTask(id){ db.collection('tasks').doc(id).delete(); }
 
 // ---------------- study sessions ----------------
 let timerInterval=null, seconds=0, running=false;
+function updateTimerDisplay(){
+  const mm=String(Math.floor(seconds/60)).padStart(2,'0'), ss=String(seconds%60).padStart(2,'0');
+  document.getElementById('timerDisplay').textContent = mm+':'+ss;
+}
 function toggleTimer(){
   if(!running){
     running=true; seconds=0;
+    saveDraft({timerRunning:true, timerStartedAt:Date.now(), timerSubject:subjectInput.value.trim()});
     document.getElementById('timerBtn').textContent='⏸ إنهاء الجلسة';
-    timerInterval = setInterval(()=>{
-      seconds++;
-      const mm=String(Math.floor(seconds/60)).padStart(2,'0'), ss=String(seconds%60).padStart(2,'0');
-      document.getElementById('timerDisplay').textContent = mm+':'+ss;
-    },1000);
+    timerInterval = setInterval(()=>{ seconds++; updateTimerDisplay(); },1000);
   } else {
     running=false; clearInterval(timerInterval);
+    saveDraft({timerRunning:false});
     document.getElementById('timerBtn').textContent='▶ ابدأ المذاكرة';
     if(seconds>5){
       const minutes = Math.round(seconds/60);
       const subject = subjectInput.value.trim() || 'بدون مادة';
-      db.collection('sessions').add({studentId:currentStudent.id,subject,minutes,createdAt:FieldValue.serverTimestamp()});
+      db.collection('sessions').add({studentId:currentStudent.id,subject,minutes,createdAt:FieldValue.serverTimestamp(),clientTime:new Date().toISOString(),device:DEVICE_NAME});
       logActivity(`جلسة مذاكرة: ${subject} — ${minutes} دقيقة`);
     }
-    seconds=0; document.getElementById('timerDisplay').textContent='00:00';
+    seconds=0; updateTimerDisplay();
   }
 }
 function loadSessions(){
@@ -754,12 +901,31 @@ function loadSessions(){
 
 // ---------------- activity log ----------------
 function logActivity(text){
-  db.collection('activity').add({studentId:currentStudent.id,text,time:FieldValue.serverTimestamp()});
+  db.collection('activity').add({studentId:currentStudent.id,text,time:FieldValue.serverTimestamp(),clientTime:new Date().toISOString(),device:DEVICE_NAME});
 }
 
 // ---------------- notifications ----------------
 if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+
+// الموقع "مفتوح قدام الطالب" دلوقتي = التاب ظاهر وشغال عليه فوكس.
+// لو مفتوح قدامه: منوريهوش إشعار برّه، هيشوفها في تبويب الإشعارات على طول.
+// لو مش فاتح / التاب في الخلفية / التاب مش عليه فوكس: نطلعله إشعار برّه على التليفون.
+function isSiteOpenNow(){
+  return document.visibilityState==='visible' && document.hasFocus();
+}
+function pushOutsideNotification(text){
+  if(isSiteOpenNow()) return;
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  try{
+    const n = new Notification('LevelUp بالعربي', { body:text, tag:'levelup-'+Date.now() });
+    n.onclick = ()=>{ window.focus(); n.close(); };
+  }catch(e){ console.warn('تعذّر إظهار إشعار برّه:', e); }
+}
+
 function loadNotifs(){
+  let firstSnapshot = true;           // أول تحميل: منعرضش إشعار برّه للإشعارات القديمة
+  const seenIds = new Set();          // نتفادى تكرار نفس الإشعار برّه أكتر من مرة
+
   db.collection('notifications').where('studentId','==',currentStudent.id).onSnapshot(snap=>{
     const list=[]; snap.forEach(d=>list.push({id:d.id,...d.data()}));
     list.sort((a,b)=>toMillis(b.time)-toMillis(a.time));
@@ -767,15 +933,32 @@ function loadNotifs(){
     const badge = document.getElementById('notifBadge');
     badge.textContent = unread; badge.classList.toggle('hidden', unread===0);
     const wrap = document.getElementById('notifList'); wrap.innerHTML='';
-    if(!list.length){ wrap.innerHTML='<p class="muted center">لا إشعارات بعد.</p>'; return; }
-    list.forEach(n=>{
-      const div = document.createElement('div');
-      div.className='list-item'; div.style.cursor='pointer';
-      if(!n.read) div.style.borderColor='var(--primary)';
-      div.innerHTML = `<div>${n.text}</div><div class="muted" style="font-size:10px;margin-top:4px;">${fmtTime(n.time)}</div>`;
-      div.onclick = ()=> db.collection('notifications').doc(n.id).update({read:true});
-      wrap.appendChild(div);
+    if(!list.length){ wrap.innerHTML='<p class="muted center">لا إشعارات بعد.</p>'; }
+    else {
+      list.forEach(n=>{
+        const div = document.createElement('div');
+        div.className='list-item'; div.style.cursor='pointer';
+        if(!n.read) div.style.borderColor='var(--primary)';
+        div.innerHTML = `<div>${n.text}</div><div class="muted" style="font-size:10px;margin-top:4px;">${fmtTime(n.time)}</div>`;
+        div.onclick = ()=> db.collection('notifications').doc(n.id).update({read:true});
+        wrap.appendChild(div);
+      });
+    }
+
+    // نطلع إشعار برّه بس للإشعارات الجديدة اللي وصلت فعلاً دلوقتي (مش القديمة)،
+    // ولو مفيش نت وقت الإرسال، Firestore هيستنى ويجيب الإشعار تلقائي أول ما النت يرجع،
+    // وساعتها لو الموقع مش فاتح قدامه هيظهرله برّه، وهو أصلاً محفوظ في الموقع كمان.
+    snap.docChanges().forEach(change=>{
+      if(change.type!=='added') return;
+      const id = change.doc.id;
+      if(seenIds.has(id)) return;
+      seenIds.add(id);
+      if(firstSnapshot) return;
+      const data = change.doc.data();
+      if(data.read) return;
+      pushOutsideNotification(data.text);
     });
+    firstSnapshot = false;
   });
 }
 function addReminder(){
@@ -787,17 +970,25 @@ function addReminder(){
   const delay = target - new Date();
   setTimeout(()=>{
     if('Notification' in window && Notification.permission==='granted') new Notification('تذكير مذاكرة',{body:text});
-    db.collection('notifications').add({studentId:currentStudent.id,text:'⏰ تذكير: '+text,type:'reminder',read:false,time:FieldValue.serverTimestamp()});
+    db.collection('notifications').add({studentId:currentStudent.id,text:'⏰ تذكير: '+text,type:'reminder',read:false,time:FieldValue.serverTimestamp(),clientTime:new Date().toISOString(),device:DEVICE_NAME});
   }, delay);
-  db.collection('notifications').add({studentId:currentStudent.id,text:`تم ضبط تذكير الساعة ${time}: ${text}`,type:'system',read:false,time:FieldValue.serverTimestamp()});
+  db.collection('notifications').add({studentId:currentStudent.id,text:`تم ضبط تذكير الساعة ${time}: ${text}`,type:'system',read:false,time:FieldValue.serverTimestamp(),clientTime:new Date().toISOString(),device:DEVICE_NAME});
   remText.value=''; remTime.value='';
+  saveDraft({remTimeDraft:'', remTextDraft:''});
 }
 
 // ---------------- tabs ----------------
 function setStudentTab(tab){
   document.querySelectorAll('#screen-student .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   ['home','study','notif'].forEach(t=> document.getElementById('stuTab-'+t).classList.toggle('hidden', t!==tab));
+  saveDraft({tab});
 }
+
+// ---------------- حفظ المسودات أول بأول أثناء الكتابة ----------------
+taskInput.addEventListener('input', ()=> saveDraft({taskDraft:taskInput.value}));
+subjectInput.addEventListener('input', ()=>{ if(!running) saveDraft({subjectDraft:subjectInput.value}); });
+remTime.addEventListener('input', ()=> saveDraft({remTimeDraft:remTime.value}));
+remText.addEventListener('input', ()=> saveDraft({remTextDraft:remText.value}));
 
 // ---------------- session persistence on reload ----------------
 auth.onAuthStateChanged(async (user)=>{
