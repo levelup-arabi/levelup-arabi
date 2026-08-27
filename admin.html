@@ -118,6 +118,17 @@
   .err-text{color:var(--red);font-size:12px;margin-top:6px;}
   .notice{background:#fff7e6;border:1px solid #fde3ad;border-radius:12px;padding:10px 12px;font-size:11.5px;margin-bottom:14px;color:#92650c;}
 
+  /* ---------- تفاصيل الطالب ---------- */
+  .detail-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-row .k{color:var(--muted);font-weight:600;white-space:nowrap;}
+  .detail-row .v{font-weight:700;text-align:left;word-break:break-word;}
+  .log-item{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:7px;font-size:12.5px;box-shadow:var(--shadow);}
+  .log-item .l1{display:flex;justify-content:space-between;font-weight:700;}
+  .log-item .l2{color:var(--muted);margin-top:3px;}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:5px;}
+  .status-dot.on{background:var(--mint);} .status-dot.off{background:var(--muted);}
+
   /* ---------- منشئ المناهج (curriculum builder) ---------- */
   .cur-breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:14px 0 4px;font-size:13px;}
   .cur-crumb{background:none;color:var(--primary);font-weight:700;padding:4px 6px;border-radius:8px;}
@@ -181,12 +192,23 @@
       <button class="tab" data-tab="curriculum" onclick="setAdminTab('curriculum')">المناهج</button>
       <button class="tab" data-tab="log" onclick="setAdminTab('log')">سجل الإدارة</button>
     </div>
-    <div id="adminTab-students"><div id="adminStudentList"></div></div>
+    <div id="adminTab-students">
+      <div class="field" style="margin-top:4px;">
+        <input id="adminStudentSearch" placeholder="بحث بالاسم / اسم المستخدم / الإيميل..." oninput="filterAdminStudents()"/>
+      </div>
+      <div id="adminStudentEmpty" class="muted hidden" style="font-size:13px;margin:6px 2px 10px;">لا يوجد نتائج مطابقة.</div>
+      <div id="adminStudentList"></div>
+    </div>
     <div id="adminTab-curriculum" class="hidden">
       <div id="curBreadcrumb" class="cur-breadcrumb"></div>
       <div id="curContent"></div>
     </div>
     <div id="adminTab-log" class="hidden"><div id="adminLogList"></div></div>
+  </section>
+
+  <section id="screen-student-detail" class="hidden">
+    <button class="link" style="margin:16px 0 4px;" onclick="closeStudentDetail()">‹ رجوع لقائمة الطلاب</button>
+    <div id="studentDetailBody"></div>
   </section>
 
 </div>
@@ -251,7 +273,7 @@ const db = getFirestore(app);
 function go(screen){
   document.querySelectorAll('section[id^="screen-"]').forEach(s=>s.classList.add('hidden'));
   document.getElementById('screen-'+screen).classList.remove('hidden');
-  document.getElementById('logoutBtn').classList.toggle('hidden', screen!=='admin');
+  document.getElementById('logoutBtn').classList.toggle('hidden', screen!=='admin' && screen!=='student-detail');
 }
 document.getElementById('logoutBtn').onclick = ()=> signOut(auth).then(()=>go('login'));
 window.go = go;
@@ -315,19 +337,37 @@ function addAdminLog(action){
 }
 
 // ---------------- students ----------------
+let allStudents = []; // كاش محلي لكل الطلاب، بيتحدث لايف من onSnapshot، وبيتستخدم في البحث وفي شاشة التفاصيل
+
 function loadAdminStudents(){
   onSnapshot(collection(db,'students'), snap=>{
-    const wrap = document.getElementById('adminStudentList');
-    wrap.textContent = '';
-    if(snap.empty){
-      const p = document.createElement('p'); p.className='muted'; p.textContent='لا يوجد طلاب بعد.';
-      wrap.appendChild(p); return;
+    allStudents = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    filterAdminStudents();
+    // لو شاشة التفاصيل مفتوحة على طالب لسه موجود، حدّث بياناته الأساسية لايف
+    if(currentDetailStudentId){
+      const fresh = allStudents.find(s=>s.id===currentDetailStudentId);
+      if(fresh) renderStudentDetailInfo(fresh);
     }
-    snap.forEach(d=>{
-      const s = {id:d.id, ...d.data()};
-      wrap.appendChild(buildStudentCard(s));
-    });
   });
+}
+
+// بحث بسيط (case-insensitive) في الاسم / اسم المستخدم / الإيميل / الصف / النظام / المسار
+window.filterAdminStudents = function(){
+  const qRaw = (document.getElementById('adminStudentSearch').value || '').trim().toLowerCase();
+  const wrap = document.getElementById('adminStudentList');
+  const emptyMsg = document.getElementById('adminStudentEmpty');
+  wrap.textContent = '';
+  const matches = !qRaw ? allStudents : allStudents.filter(s=>{
+    const hay = [s.name, s.username, s.email, s.gradeName, s.systemName, s.trackName, s.track]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(qRaw);
+  });
+  emptyMsg.classList.toggle('hidden', matches.length>0 || allStudents.length===0);
+  if(allStudents.length===0){
+    const p = document.createElement('p'); p.className='muted'; p.textContent='لا يوجد طلاب بعد.';
+    wrap.appendChild(p); return;
+  }
+  matches.forEach(s=> wrap.appendChild(buildStudentCard(s)));
 }
 
 // كل قيمة قادمة من Firestore (اسم، يوزر، مسار) بتتحط كـ textContent فقط،
@@ -351,6 +391,10 @@ function buildStudentCard(s){
   info.appendChild(pill);
   info.appendChild(subDiv);
   row1.appendChild(info);
+  const detailBtn = document.createElement('button');
+  detailBtn.className='link'; detailBtn.style.fontSize='12px'; detailBtn.textContent='التفاصيل والأجهزة ›';
+  detailBtn.addEventListener('click', ()=> openStudentDetail(s.id));
+  row1.appendChild(detailBtn);
   div.appendChild(row1);
 
   div.appendChild(buildStudentCurriculumDetail(s));
@@ -467,6 +511,138 @@ function loadAdminLog(){
       div.appendChild(actionSpan); div.appendChild(timeSpan);
       wrap.appendChild(div);
     });
+  });
+}
+
+// ---------------- شاشة تفاصيل الطالب (بريد، أجهزة، جلسات الدخول) ----------------
+let currentDetailStudentId = null;
+let unsubDetailLogs = null; // لإلغاء الاشتراك في onSnapshot لما نسيب الشاشة
+
+window.openStudentDetail = function(id){
+  const s = allStudents.find(x=>x.id===id);
+  if(!s) return;
+  currentDetailStudentId = id;
+  go('student-detail');
+  renderStudentDetailInfo(s);
+  loadStudentLoginLogs(id);
+}
+
+window.closeStudentDetail = function(){
+  currentDetailStudentId = null;
+  if(unsubDetailLogs){ unsubDetailLogs(); unsubDetailLogs = null; }
+  go('admin');
+}
+
+function detailRow(container, k, v){
+  const row = document.createElement('div'); row.className='detail-row';
+  const kEl = document.createElement('div'); kEl.className='k'; kEl.textContent = k;
+  const vEl = document.createElement('div'); vEl.className='v'; vEl.textContent = (v===undefined||v===null||v==='') ? '—' : v;
+  row.appendChild(kEl); row.appendChild(vEl);
+  container.appendChild(row);
+}
+
+// بيرسم الجزء العلوي (بيانات ثابتة + آخر جهاز/آي بي معروفين من مستند الطالب نفسه)،
+// وبيتنادى تاني كل مرة يتحدث فيها مستند الطالب لايف من onSnapshot في loadAdminStudents.
+function renderStudentDetailInfo(s){
+  const wrap = document.getElementById('studentDetailBody');
+  wrap.textContent = '';
+
+  const head = document.createElement('div'); head.className='row';
+  head.style.cssText='justify-content:space-between;align-items:center;margin-bottom:10px;';
+  const nameB = document.createElement('h2'); nameB.style.margin='0'; nameB.textContent = s.name || 'بدون اسم';
+  const pill = document.createElement('span');
+  pill.className = `pill ${s.active===false?'suspended':'active'}`;
+  pill.textContent = s.active===false ? 'موقوف' : 'فعال';
+  head.appendChild(nameB); head.appendChild(pill);
+  wrap.appendChild(head);
+
+  const card = document.createElement('div'); card.className='list-item';
+  detailRow(card, '👤 اسم المستخدم', s.username);
+  detailRow(card, '📧 الإيميل', s.email);
+  detailRow(card, '🆔 معرّف الحساب (UID)', s.id);
+  detailRow(card, '📚 الصف', s.gradeName);
+  detailRow(card, '🏫 النظام', s.systemName);
+  detailRow(card, '🛤️ المسار', s.trackName || s.track);
+  detailRow(card, '🗓️ تاريخ إنشاء الحساب', s.createdAt ? fmtTime(s.createdAt) : '—');
+  wrap.appendChild(card);
+
+  const devCard = document.createElement('div'); devCard.className='list-item';
+  const devTitle = document.createElement('div'); devTitle.className='cur-section-title'; devTitle.style.margin='0 0 4px'; devTitle.textContent='📱 آخر جهاز ودخول معروف';
+  devCard.appendChild(devTitle);
+  detailRow(devCard, 'آخر جهاز', s.lastDevice);
+  detailRow(devCard, 'أول جهاز اتسجل بيه', s.createdOnDevice || s.lastDevice);
+  detailRow(devCard, 'آخر IP', s.lastIp);
+  detailRow(devCard, 'آخر دخول', s.lastLoginAt ? fmtTime(s.lastLoginAt) : '—');
+  wrap.appendChild(devCard);
+
+  // أدوات سريعة: نفس أزرار كارت الطالب (إشعار / تعطيل / حذف) لكن هنا في شاشة كاملة
+  const notifRow = document.createElement('div'); notifRow.className='row'; notifRow.style.marginTop='10px';
+  const notifInput = document.createElement('input'); notifInput.placeholder = 'إشعار للطالب...';
+  const sendBtn = document.createElement('button'); sendBtn.className='btn-primary'; sendBtn.textContent='إرسال';
+  sendBtn.addEventListener('click', ()=> sendNotif(s.id, s.name, notifInput));
+  notifRow.appendChild(notifInput); notifRow.appendChild(sendBtn);
+  wrap.appendChild(notifRow);
+
+  const actionRow = document.createElement('div'); actionRow.className='row'; actionRow.style.marginTop='8px';
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className='btn-amber'; toggleBtn.style.flex='1';
+  toggleBtn.textContent = s.active===false ? 'إعادة تفعيل' : 'تعطيل';
+  toggleBtn.addEventListener('click', ()=> toggleActive(s.id, s.name, s.active!==false));
+  const delBtn = document.createElement('button');
+  delBtn.className='btn-danger'; delBtn.style.flex='1'; delBtn.textContent='حذف نهائي';
+  delBtn.addEventListener('click', async ()=>{ await hardDeleteStudent(s.id, s.name); closeStudentDetail(); });
+  actionRow.appendChild(toggleBtn); actionRow.appendChild(delBtn);
+  wrap.appendChild(actionRow);
+
+  const logTitle = document.createElement('div'); logTitle.className='cur-section-title'; logTitle.textContent='🕒 سجل جلسات الدخول (آخر 50)';
+  wrap.appendChild(logTitle);
+  const logList = document.createElement('div'); logList.id='studentLoginLogList';
+  wrap.appendChild(logList);
+}
+
+// سجل جلسات الدخول لطالب معين من مجموعة loginLogs (اللي بيتم تسجيلها من index.html وقت كل دخول).
+// لايف عبر onSnapshot عشان لو الطالب داخل دلوقتي تشوف حالته "متصل الآن" تتحدث تلقائيًا.
+function loadStudentLoginLogs(id){
+  if(unsubDetailLogs){ unsubDetailLogs(); unsubDetailLogs = null; }
+  const logList = document.getElementById('studentLoginLogList');
+  const qy = query(collection(db,'loginLogs'), where('studentId','==',id), orderBy('openedAt','desc'), limit(50));
+  unsubDetailLogs = onSnapshot(qy, snap=>{
+    // لو الطالب سايب الشاشة قبل ما الاستعلام يرجع، متكتبش في عنصر مش موجود
+    const el = document.getElementById('studentLoginLogList');
+    if(!el) return;
+    el.textContent = '';
+    if(snap.empty){
+      const p = document.createElement('p'); p.className='muted'; p.style.fontSize='13px'; p.textContent='لا يوجد سجل دخول بعد.';
+      el.appendChild(p); return;
+    }
+    snap.forEach(d=>{
+      const l = d.data();
+      const item = document.createElement('div'); item.className='log-item';
+      const l1 = document.createElement('div'); l1.className='l1';
+      const dot = document.createElement('span');
+      dot.innerHTML=''; dot.className='status-dot ' + (l.open ? 'on' : 'off');
+      const leftSpan = document.createElement('span');
+      leftSpan.appendChild(dot);
+      leftSpan.appendChild(document.createTextNode(l.open ? 'متصل الآن' : 'انتهت الجلسة'));
+      const timeSpan = document.createElement('span'); timeSpan.className='muted';
+      timeSpan.textContent = l.openedAt ? fmtTime(l.openedAt) : '—';
+      l1.appendChild(leftSpan); l1.appendChild(timeSpan);
+      item.appendChild(l1);
+
+      const l2 = document.createElement('div'); l2.className='l2';
+      const parts = [];
+      if(l.device) parts.push('📱 '+l.device);
+      if(l.ip) parts.push('🌐 '+l.ip);
+      if(l.closedAt) parts.push('أُغلقت: '+fmtTime(l.closedAt));
+      else if(l.lastSeenAt) parts.push('آخر ظهور: '+fmtTime(l.lastSeenAt));
+      l2.textContent = parts.join(' • ');
+      item.appendChild(l2);
+      el.appendChild(item);
+    });
+  }, err=>{
+    console.error('loadStudentLoginLogs error:', err);
+    const el = document.getElementById('studentLoginLogList');
+    if(el){ el.textContent=''; const p=document.createElement('p'); p.className='err-text'; p.textContent='تعذّر تحميل سجل الدخول.'; el.appendChild(p); }
   });
 }
 
